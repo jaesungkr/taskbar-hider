@@ -37,15 +37,8 @@ jobs:
           --hidden-import PIL
           --hidden-import PIL.Image
           --hidden-import PIL.ImageDraw
-          --hidden-import slink
-          --hidden-import slink.core
-          --hidden-import slink.gui
-          --hidden-import slink.win32
-          --hidden-import slink.tray
-          --hidden-import slink.updater
-          --hidden-import slink.resources
           --noconfirm
-          slink.py
+          main.py
 
       - name: Upload exe to Release
         uses: softprops/action-gh-release@v2
