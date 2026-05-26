@@ -8,31 +8,35 @@ A lightweight tool to hide specific app buttons from the Windows taskbar while k
 
 ## How It Works
 
-Slink modifies the [Extended Window Style](https://learn.microsoft.com/en-us/windows/win32/winmsg/extended-window-styles) of a target window:
+Slink modifies the [Extended Window Style](https://learn.microsoft.com/en-us/windows/win32/winmsg/extended-window-styles) of a target window and uses the `ITaskbarList3` COM interface to force-remove taskbar icons — even from apps (like games) that re-register them.
 
-- Removes `WS_EX_APPWINDOW` — disables taskbar visibility
-- Adds `WS_EX_TOOLWINDOW` — excludes the window from the taskbar entirely
+- Removes `WS_EX_APPWINDOW` + adds `WS_EX_TOOLWINDOW`
+- Calls `ITaskbarList3.DeleteTab()` for stubborn apps
+- Background watcher re-hides windows that reappear
+- Hidden windows are fully hidden (not just removed from taskbar)
 
-The application itself keeps running normally. You can still access hidden windows via `Alt+Tab` or by clicking on them directly.
-
-## Quick Start
+## Install
 
 ```powershell
 git clone https://github.com/jaesungkr/slink.git
 cd slink
+pip install -r requirements.txt
 python slink.py
 ```
 
-No external dependencies — uses only Python standard libraries (`ctypes`, `tkinter`).
+Or download the latest `.exe` from [Releases](https://github.com/jaesungkr/slink/releases/latest).
 
 ## Usage
 
-1. Launch the program — a GUI window opens
-2. **Top list**: Windows currently visible on the taskbar
-3. Select a window → click **Hide from Taskbar**
-4. **Bottom list**: Windows hidden from the taskbar
-5. Select a hidden window → click **Show on Taskbar** to restore it
-6. **Restore All & Quit** — restores every hidden window and exits
+1. Launch Slink
+2. **Main tab** — select a window → click **Hide** to hide it (window + taskbar button)
+3. Click **Show** to restore a hidden window
+4. Closing the window minimizes Slink to the system tray
+5. Right-click tray icon → **Restore All & Quit** to exit
+
+## Settings
+
+The **Settings tab** shows app info, version, and has a one-click update checker that compares your version against the latest GitHub Release.
 
 ## Build as .exe
 
@@ -41,10 +45,14 @@ pip install pyinstaller
 pyinstaller --onefile --windowed --name Slink slink.py
 ```
 
-The standalone executable will be generated at `dist/Slink.exe`.
+Output: `dist/Slink.exe`
 
 ## Notes
 
-- All hidden windows are automatically restored when the program exits.
+- All hidden windows are automatically restored when Slink exits.
 - To hide windows from apps running as Administrator, run Slink as Administrator too.
 - Some UWP apps (Microsoft Store apps) may have limited support.
+
+## Author
+
+**ja2sng** — [github.com/jaesungkr](https://github.com/jaesungkr)

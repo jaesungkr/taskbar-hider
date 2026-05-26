@@ -22,6 +22,18 @@ import tkinter as tk
 from tkinter import ttk
 from dataclasses import dataclass, field
 from typing import Dict, Optional
+import webbrowser
+import urllib.request
+import json
+
+# ──────────────────────────────────────────────
+# 앱 정보
+# ──────────────────────────────────────────────
+APP_NAME = "Slink"
+APP_VERSION = "1.0.0"
+APP_AUTHOR = "ja2sng"
+APP_REPO = "jaesungkr/slink"
+APP_GITHUB = f"https://github.com/{APP_REPO}"
 
 # ──────────────────────────────────────────────
 # Win32 API 상수 및 함수
@@ -400,19 +412,47 @@ class SlinkGUI:
                    foreground=[("selected", "#111111")])
 
     def _build_ui(self):
+        FONT = "Malgun Gothic"
+        BG = "#fafaf8"
+
         # ── 상단 헤더 ──
         header = ttk.Frame(self.root)
         header.pack(fill=tk.X, padx=20, pady=(20, 4))
 
-        ttk.Label(header, text="Slink", style="Title.TLabel").pack(side=tk.LEFT)
+        ttk.Label(header, text=APP_NAME, style="Title.TLabel").pack(side=tk.LEFT)
+        ttk.Label(header, text=f"v{APP_VERSION}", style="Section.TLabel").pack(
+            side=tk.LEFT, padx=(8, 0), pady=(6, 0))
 
         self.btn_restore_all = ttk.Button(header, text="Restore All and Quit",
                                            command=self._on_quit, style="Quit.TButton")
         self.btn_restore_all.pack(side=tk.RIGHT)
 
+        # ── 탭 컨테이너 ──
+        self.style = ttk.Style()
+        self.style.configure("TNotebook", background=BG, borderwidth=0)
+        self.style.configure("TNotebook.Tab", font=(FONT, 10),
+                              padding=(16, 6), background="#e6e5e3")
+        self.style.map("TNotebook.Tab",
+                        background=[("selected", BG)],
+                        foreground=[("selected", "#111111")])
+
+        notebook = ttk.Notebook(self.root)
+        notebook.pack(fill=tk.BOTH, expand=True, padx=20, pady=(8, 12))
+
+        # ── Main 탭 ──
+        main_tab = ttk.Frame(notebook)
+        notebook.add(main_tab, text="  Main  ")
+        self._build_main_tab(main_tab)
+
+        # ── Settings 탭 ──
+        settings_tab = ttk.Frame(notebook)
+        notebook.add(settings_tab, text="  Settings  ")
+        self._build_settings_tab(settings_tab)
+
+    def _build_main_tab(self, parent):
         # ── 버튼 바 ──
-        btn_frame = ttk.Frame(self.root)
-        btn_frame.pack(fill=tk.X, padx=20, pady=(8, 4))
+        btn_frame = ttk.Frame(parent)
+        btn_frame.pack(fill=tk.X, padx=4, pady=(12, 4))
 
         self.btn_hide = ttk.Button(btn_frame, text="⬇  Hide",
                                     command=self._on_hide, style="Hide.TButton")
@@ -427,11 +467,11 @@ class SlinkGUI:
         self.btn_refresh.pack(side=tk.LEFT)
 
         # ── 실행 중인 창 목록 ──
-        ttk.Label(self.root, text="VISIBLE WINDOWS",
-                   style="Section.TLabel").pack(anchor=tk.W, padx=20, pady=(12, 4))
+        ttk.Label(parent, text="VISIBLE WINDOWS",
+                   style="Section.TLabel").pack(anchor=tk.W, padx=4, pady=(12, 4))
 
-        tree_frame = ttk.Frame(self.root)
-        tree_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0, 4))
+        tree_frame = ttk.Frame(parent)
+        tree_frame.pack(fill=tk.BOTH, expand=True, padx=4, pady=(0, 4))
 
         cols = ("hwnd", "process", "title")
         self.tree_visible = ttk.Treeview(tree_frame, columns=cols,
@@ -450,11 +490,11 @@ class SlinkGUI:
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
         # ── 숨겨진 창 목록 ──
-        ttk.Label(self.root, text="HIDDEN WINDOWS",
-                   style="Section.TLabel").pack(anchor=tk.W, padx=20, pady=(10, 4))
+        ttk.Label(parent, text="HIDDEN WINDOWS",
+                   style="Section.TLabel").pack(anchor=tk.W, padx=4, pady=(10, 4))
 
-        hidden_frame = ttk.Frame(self.root)
-        hidden_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0, 12))
+        hidden_frame = ttk.Frame(parent)
+        hidden_frame.pack(fill=tk.BOTH, expand=True, padx=4, pady=(0, 4))
 
         self.tree_hidden = ttk.Treeview(hidden_frame, columns=cols,
                                          show="headings", selectmode="extended")
@@ -473,9 +513,120 @@ class SlinkGUI:
 
         # ── 상태바 ──
         self.status_var = tk.StringVar(value="Ready")
-        status_bar = ttk.Label(self.root, textvariable=self.status_var,
+        status_bar = ttk.Label(parent, textvariable=self.status_var,
                                 font=("Malgun Gothic", 8), foreground="#999999")
-        status_bar.pack(fill=tk.X, padx=20, pady=(0, 10))
+        status_bar.pack(fill=tk.X, padx=4, pady=(4, 4))
+
+    def _build_settings_tab(self, parent):
+        FONT = "Malgun Gothic"
+        BG = "#fafaf8"
+        FG = "#222222"
+        FG_DIM = "#999999"
+
+        container = ttk.Frame(parent)
+        container.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+
+        # ── About ──
+        ttk.Label(container, text="ABOUT", style="Section.TLabel").pack(
+            anchor=tk.W, pady=(0, 8))
+
+        info_frame = ttk.Frame(container)
+        info_frame.pack(fill=tk.X, pady=(0, 20))
+
+        rows = [
+            ("App", APP_NAME),
+            ("Version", f"v{APP_VERSION}"),
+            ("Author", APP_AUTHOR),
+            ("License", "MIT"),
+        ]
+        for label, value in rows:
+            row = ttk.Frame(info_frame)
+            row.pack(fill=tk.X, pady=2)
+            ttk.Label(row, text=label, font=(FONT, 10),
+                       foreground=FG_DIM, width=12, anchor=tk.W).pack(side=tk.LEFT)
+            ttk.Label(row, text=value, font=(FONT, 10),
+                       foreground=FG).pack(side=tk.LEFT)
+
+        # ── 구분선 ──
+        sep = ttk.Frame(container, height=1)
+        sep.pack(fill=tk.X, pady=(0, 20))
+        sep_line = tk.Frame(sep, height=1, bg="#dddcda")
+        sep_line.pack(fill=tk.X)
+
+        # ── Update ──
+        ttk.Label(container, text="UPDATE", style="Section.TLabel").pack(
+            anchor=tk.W, pady=(0, 8))
+
+        self.update_status_var = tk.StringVar(value="")
+        update_frame = ttk.Frame(container)
+        update_frame.pack(fill=tk.X, pady=(0, 8))
+
+        self.btn_check_update = ttk.Button(
+            update_frame, text="Check for Updates",
+            command=self._on_check_update)
+        self.btn_check_update.pack(side=tk.LEFT, padx=(0, 12))
+
+        self.update_status_label = ttk.Label(
+            update_frame, textvariable=self.update_status_var,
+            font=(FONT, 9), foreground=FG_DIM)
+        self.update_status_label.pack(side=tk.LEFT)
+
+        # ── 구분선 ──
+        sep2 = ttk.Frame(container, height=1)
+        sep2.pack(fill=tk.X, pady=(12, 20))
+        sep_line2 = tk.Frame(sep2, height=1, bg="#dddcda")
+        sep_line2.pack(fill=tk.X)
+
+        # ── Links ──
+        ttk.Label(container, text="LINKS", style="Section.TLabel").pack(
+            anchor=tk.W, pady=(0, 8))
+
+        link_frame = ttk.Frame(container)
+        link_frame.pack(fill=tk.X)
+
+        github_btn = ttk.Button(link_frame, text="GitHub Repository",
+                                 command=lambda: webbrowser.open(APP_GITHUB))
+        github_btn.pack(side=tk.LEFT, padx=(0, 8))
+
+        releases_btn = ttk.Button(link_frame, text="Download Latest",
+                                   command=lambda: webbrowser.open(f"{APP_GITHUB}/releases/latest"))
+        releases_btn.pack(side=tk.LEFT)
+
+    # ── 업데이트 체크 ──
+    def _on_check_update(self):
+        """GitHub Releases API로 최신 버전을 확인한다."""
+        self.update_status_var.set("Checking...")
+        self.btn_check_update.configure(state="disabled")
+
+        def check():
+            try:
+                url = f"https://api.github.com/repos/{APP_REPO}/releases/latest"
+                req = urllib.request.Request(url, headers={"User-Agent": APP_NAME})
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    data = json.loads(resp.read().decode())
+
+                latest = data.get("tag_name", "").lstrip("v")
+                if not latest:
+                    self.root.after(0, lambda: self._update_result("Could not determine latest version"))
+                    return
+
+                if latest == APP_VERSION:
+                    self.root.after(0, lambda: self._update_result(
+                        f"✓ Up to date (v{APP_VERSION})"))
+                else:
+                    self.root.after(0, lambda: self._update_result(
+                        f"New version available: v{latest}", is_new=True))
+
+            except Exception as e:
+                self.root.after(0, lambda: self._update_result(f"Check failed: {e}"))
+
+        threading.Thread(target=check, daemon=True).start()
+
+    def _update_result(self, message: str, is_new: bool = False):
+        self.update_status_var.set(message)
+        self.btn_check_update.configure(state="normal")
+        if is_new:
+            self.update_status_label.configure(foreground="#bb4444")
 
     # ── 시스템 트레이 ──
     def _setup_tray(self):
