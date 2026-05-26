@@ -71,13 +71,22 @@ def download_and_apply(download_url: str, on_done, on_error):
                             f.write(chunk)
 
                 bat_path = os.path.join(tempfile.gettempdir(), "slink_update.bat")
+                pid = os.getpid()
                 with open(bat_path, "w") as bat:
                     bat.write(f"""@echo off
-ping 127.0.0.1 -n 3 > nul
+echo Waiting for Slink to close...
+:wait
+tasklist /FI "PID eq {pid}" 2>nul | find "{pid}" >nul
+if not errorlevel 1 (
+    timeout /t 1 /nobreak >nul
+    goto wait
+)
+timeout /t 1 /nobreak >nul
 if exist "{old_path}" del /f "{old_path}"
 move /y "{current_exe}" "{old_path}"
 move /y "{new_path}" "{current_exe}"
 start "" "{current_exe}"
+timeout /t 2 /nobreak >nul
 del /f "{old_path}"
 del /f "%~f0"
 """)
