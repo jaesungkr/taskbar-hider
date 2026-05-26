@@ -428,12 +428,14 @@ class SlinkGUI:
         self.btn_do_update.configure(state="disabled")
         self.update_status_var.set("Downloading...")
 
-        def on_done(restart_func):
+        def on_done(close_func):
             def _do():
+                from tkinter import messagebox
                 self.core.restore_all()
                 if self.tray_icon:
                     self.tray_icon.stop()
-                restart_func()
+                messagebox.showinfo("Slink", "Update complete. Please restart Slink.")
+                close_func()
             self.root.after(0, _do)
 
         def on_error(msg):

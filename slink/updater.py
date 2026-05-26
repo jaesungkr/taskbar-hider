@@ -74,31 +74,18 @@ def download_and_apply(download_url: str, on_done, on_error):
 ping 127.0.0.1 -n 6 >nul
 if exist "{old_path}" del /f "{old_path}"
 rename "{app_exe}" "{os.path.basename(old_path)}"
-if errorlevel 1 (
-    echo FAILED to rename old exe >> "{bat_path}.log"
-    exit /b 1
-)
 rename "{new_path}" "{os.path.basename(app_exe)}"
-if errorlevel 1 (
-    echo FAILED to rename new exe >> "{bat_path}.log"
-    rename "{old_path}" "{os.path.basename(app_exe)}"
-    exit /b 1
-)
 if exist "{old_path}" del /f "{old_path}"
 for /d %%i in ("%TEMP%\\_MEI*") do rmdir /s /q "%%i" 2>nul
-ping 127.0.0.1 -n 2 >nul
-start "" "{app_exe}"
-ping 127.0.0.1 -n 3 >nul
-del /f "{bat_path}.log" 2>nul
 del /f "%~f0"
 """)
 
-                def restart():
+                def close():
                     subprocess.Popen(["cmd", "/c", bat_path],
                                       creationflags=0x00000008)
                     sys.exit(0)
 
-                on_done(restart)
+                on_done(close)
 
             else:
                 # .py 모드
