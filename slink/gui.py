@@ -305,9 +305,6 @@ class SlinkGUI:
         self._section_label(c, "Links", top=0)
         lf = tk.Frame(c, bg=BG)
         lf.pack(fill=tk.X)
-        ttk.Button(lf, text="GitHub",
-                    command=lambda: webbrowser.open(APP_GITHUB)).pack(
-            side=tk.LEFT, padx=(0, 8))
         ttk.Button(lf, text="Releases",
                     command=lambda: webbrowser.open(
                         f"{APP_GITHUB}/releases/latest")).pack(side=tk.LEFT)
