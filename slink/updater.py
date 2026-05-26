@@ -67,23 +67,23 @@ def download_and_apply(download_url: str, on_done, on_error):
                                 break
                             f.write(chunk)
 
-                # 배치 스크립트: PID 종료 대기 → 파일 교체 → 재시작
+                # 배치 스크립트: 프로세스 종료 대기 → 파일 교체 → 재시작
                 bat_path = os.path.join(tempfile.gettempdir(), "slink_update.bat")
-                exe_name = os.path.basename(app_exe)
                 with open(bat_path, "w", encoding="ascii", errors="replace") as bat:
                     bat.write(f"""@echo off
+ping 127.0.0.1 -n 4 >nul
 :wait
-tasklist /FI "IMAGENAME eq {exe_name}" /NH 2>nul | find /I "{exe_name}" >nul
+tasklist /NH 2>nul | find /I "Slink" >nul
 if not errorlevel 1 (
     ping 127.0.0.1 -n 2 >nul
     goto wait
 )
-ping 127.0.0.1 -n 2 >nul
+ping 127.0.0.1 -n 3 >nul
 for /d %%i in ("%TEMP%\\_MEI*") do rmdir /s /q "%%i" 2>nul
 ping 127.0.0.1 -n 2 >nul
 if exist "{old_path}" del /f "{old_path}"
-rename "{app_exe}" "{os.path.basename(old_path)}"
-rename "{new_path}" "{os.path.basename(app_exe)}"
+move /y "{app_exe}" "{old_path}"
+move /y "{new_path}" "{app_exe}"
 if exist "{old_path}" del /f "{old_path}"
 start "" "{app_exe}"
 ping 127.0.0.1 -n 3 >nul
@@ -91,8 +91,10 @@ del /f "%~f0"
 """)
 
                 def close():
-                    subprocess.Popen(["cmd", "/c", bat_path],
-                                      creationflags=0x00000008)
+                    subprocess.Popen(
+                        f'start /b cmd /c "{bat_path}"',
+                        shell=True
+                    )
                     sys.exit(0)
 
                 on_done(close)
