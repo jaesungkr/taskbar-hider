@@ -21,7 +21,11 @@ jobs:
           pip install pyinstaller
 
       - name: Build exe
-        run: pyinstaller Slink.spec
+        run: |
+          dir
+          dir slink
+          pyinstaller Slink.spec --noconfirm
+          dir dist
 
       - name: Upload exe to Release
         uses: softprops/action-gh-release@v2
