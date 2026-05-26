@@ -154,7 +154,7 @@ class SlinkGUI:
         self._tab_frames = {}
         self._active_tab = None
 
-        for name in ["Main", "Settings"]:
+        for name in ["Windows", "Settings"]:
             tab_container = tk.Frame(tab_bar, bg=BG)
             tab_container.pack(side=tk.LEFT, padx=(0, 24))
 
@@ -177,14 +177,14 @@ class SlinkGUI:
         self._tab_container.pack(fill=tk.BOTH, expand=True, padx=pad_x, pady=(0, 16))
 
         main_frame = tk.Frame(self._tab_container, bg=BG)
-        self._tab_frames["Main"] = main_frame
+        self._tab_frames["Windows"] = main_frame
         self._build_main_tab(main_frame)
 
         settings_frame = tk.Frame(self._tab_container, bg=BG)
         self._tab_frames["Settings"] = settings_frame
         self._build_settings_tab(settings_frame)
 
-        self._switch_tab("Main")
+        self._switch_tab("Windows")
 
     def _switch_tab(self, name: str):
         if self._active_tab == name:
