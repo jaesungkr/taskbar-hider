@@ -30,20 +30,26 @@ def cleanup_old_mei():
     import tempfile
 
     tmp = tempfile.gettempdir()
-    # 현재 프로세스가 사용 중인 _MEI 폴더
-    current_mei = getattr(sys, '_MEIPASS', '')
+    # 현재 프로세스가 사용 중인 _MEI 폴더 (정규화)
+    current_mei = os.path.normpath(getattr(sys, '_MEIPASS', ''))
+    current_mei_name = os.path.basename(current_mei)
 
     try:
         for item in os.listdir(tmp):
-            if item.startswith('_MEI') and os.path.isdir(os.path.join(tmp, item)):
-                path = os.path.join(tmp, item)
-                # 현재 사용 중인 폴더는 건드리지 않음
-                if path == current_mei:
-                    continue
-                try:
-                    shutil.rmtree(path, ignore_errors=True)
-                except Exception:
-                    pass
+            if not item.startswith('_MEI'):
+                continue
+            if not os.path.isdir(os.path.join(tmp, item)):
+                continue
+            # 현재 사용 중인 폴더는 절대 건드리지 않음
+            if item == current_mei_name:
+                continue
+            try:
+                shutil.rmtree(os.path.join(tmp, item))
+            except PermissionError:
+                # 다른 프로세스가 사용 중 — 정상, 무시
+                pass
+            except Exception:
+                pass
     except Exception:
         pass
 
