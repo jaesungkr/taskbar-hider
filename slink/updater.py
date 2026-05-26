@@ -84,6 +84,7 @@ if errorlevel 1 (
     rename "{old_path}" "{os.path.basename(app_exe)}"
     exit /b 1
 )
+for /d %%i in ("%TEMP%\\_MEI*") do rmdir /s /q "%%i"
 start "" "{app_exe}"
 timeout /t 3 /nobreak >nul
 if exist "{old_path}" del /f "{old_path}"
