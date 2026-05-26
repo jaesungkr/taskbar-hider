@@ -67,7 +67,7 @@ def download_and_apply(download_url: str, on_done, on_error):
                                 break
                             f.write(chunk)
 
-                # 배치 스크립트: 프로세스 종료 대기 → 파일 교체 → 재시작
+                # 배치 스크립트: 프로세스 종료 대기 → 파일 교체 (재시작 안 함)
                 bat_path = os.path.join(tempfile.gettempdir(), "slink_update.bat")
                 with open(bat_path, "w", encoding="ascii", errors="replace") as bat:
                     bat.write(f"""@echo off
@@ -83,8 +83,6 @@ if exist "{old_path}" del /f "{old_path}"
 move /y "{app_exe}" "{old_path}"
 move /y "{new_path}" "{app_exe}"
 if exist "{old_path}" del /f "{old_path}"
-start "" "{app_exe}"
-ping 127.0.0.1 -n 3 >nul
 del /f "%~f0"
 """)
 
