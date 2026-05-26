@@ -91,11 +91,13 @@ del /f "%~f0"
 """)
 
                 def close():
+                    import time
                     subprocess.Popen(
                         f'start /b cmd /c "{bat_path}"',
                         shell=True
                     )
-                    sys.exit(0)
+                    time.sleep(0.5)
+                    os._exit(0)
 
                 on_done(close)
 
