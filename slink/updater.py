@@ -71,7 +71,7 @@ def download_and_apply(download_url: str, on_done, on_error):
                 bat_path = os.path.join(tempfile.gettempdir(), "slink_update.bat")
                 with open(bat_path, "w", encoding="ascii", errors="replace") as bat:
                     bat.write(f"""@echo off
-timeout /t 5 /nobreak >nul
+ping 127.0.0.1 -n 6 >nul
 if exist "{old_path}" del /f "{old_path}"
 rename "{app_exe}" "{os.path.basename(old_path)}"
 if errorlevel 1 (
@@ -84,12 +84,13 @@ if errorlevel 1 (
     rename "{old_path}" "{os.path.basename(app_exe)}"
     exit /b 1
 )
-for /d %%i in ("%TEMP%\\_MEI*") do rmdir /s /q "%%i"
-start "" "{app_exe}"
-timeout /t 3 /nobreak >nul
 if exist "{old_path}" del /f "{old_path}"
+for /d %%i in ("%TEMP%\\_MEI*") do rmdir /s /q "%%i" 2>nul
+ping 127.0.0.1 -n 2 >nul
+start "" "{app_exe}"
+ping 127.0.0.1 -n 3 >nul
+del /f "{bat_path}.log" 2>nul
 del /f "%~f0"
-del /f "{bat_path}.log"
 """)
 
                 def restart():
