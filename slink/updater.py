@@ -67,7 +67,7 @@ def download_and_apply(download_url: str, on_done, on_error):
                                 break
                             f.write(chunk)
 
-                # 배치 스크립트: 프로세스 종료 대기 → 파일 교체 (재시작 안 함)
+                # 배치 스크립트: 프로세스 종료 대기 → 파일 교체 → 완료 알림
                 bat_path = os.path.join(tempfile.gettempdir(), "slink_update.bat")
                 with open(bat_path, "w", encoding="ascii", errors="replace") as bat:
                     bat.write(f"""@echo off
@@ -83,6 +83,7 @@ if exist "{old_path}" del /f "{old_path}"
 move /y "{app_exe}" "{old_path}"
 move /y "{new_path}" "{app_exe}"
 if exist "{old_path}" del /f "{old_path}"
+powershell -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show('Update complete. You can now reopen Slink.', 'Slink Update', 'OK', 'Information')" >nul 2>&1
 del /f "%~f0"
 """)
 
