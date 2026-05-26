@@ -268,6 +268,32 @@ class TaskbarHiderCore:
         del self.hidden[hwnd]
         return True
 
+    def enforce_hidden(self):
+        """숨긴 창이 다시 작업표시줄에 나타났으면 다시 숨긴다."""
+        for hwnd, info in list(self.hidden.items()):
+            # 창이 아직 존재하는지 확인
+            if not user32.IsWindow(hwnd):
+                del self.hidden[hwnd]
+                continue
+
+            # 스타일이 원래대로 돌아갔는지 확인
+            current_style = get_window_exstyle(hwnd)
+            has_toolwindow = bool(current_style & WS_EX_TOOLWINDOW)
+
+            if not has_toolwindow:
+                # 앱이 스타일을 되돌린 경우 → 다시 적용
+                user32.ShowWindow(hwnd, SW_HIDE)
+                new_style = (current_style & ~WS_EX_APPWINDOW) | WS_EX_TOOLWINDOW
+                set_window_exstyle(hwnd, new_style)
+                user32.ShowWindow(hwnd, SW_SHOW)
+
+            # COM으로도 다시 제거
+            if self.taskbar_list:
+                try:
+                    self.taskbar_list.DeleteTab(hwnd)
+                except Exception:
+                    pass
+
     def restore_all(self):
         """모든 숨긴 창을 복원한다. (종료 시 호출)"""
         for hwnd in list(self.hidden.keys()):
@@ -289,6 +315,7 @@ class TaskbarHiderGUI:
         self._apply_style()
         self._build_ui()
         self._refresh_list()
+        self._start_watcher()
 
     def _apply_style(self):
         style = ttk.Style()
@@ -464,6 +491,14 @@ class TaskbarHiderGUI:
 
         self.status_var.set(f"✓ {count}개 창을 작업표시줄에 복원했습니다")
         self._refresh_list()
+
+    def _start_watcher(self):
+        """1초마다 숨긴 창이 다시 나타났는지 감시하고 다시 숨긴다."""
+        def tick():
+            if self.core.hidden:
+                self.core.enforce_hidden()
+            self._watcher_id = self.root.after(1000, tick)
+        self._watcher_id = self.root.after(1000, tick)
 
     def _on_close(self):
         """창 닫기 → 트레이로 최소화 (트레이 미사용 시 바로 종료)."""
