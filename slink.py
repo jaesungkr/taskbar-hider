@@ -17,6 +17,7 @@ Slink - Windows 작업표시줄에서 특정 앱 버튼을 숨기는 도구
 
 import ctypes
 import ctypes.wintypes as wintypes
+import sys
 import threading
 import tkinter as tk
 from tkinter import ttk
@@ -564,12 +565,18 @@ class SlinkGUI:
         self.btn_check_update = ttk.Button(
             update_frame, text="Check for Updates",
             command=self._on_check_update)
-        self.btn_check_update.pack(side=tk.LEFT, padx=(0, 12))
+        self.btn_check_update.pack(side=tk.LEFT, padx=(0, 6))
+
+        self.btn_do_update = ttk.Button(
+            update_frame, text="Update Now",
+            command=self._on_do_update, style="Hide.TButton")
+        # 처음에는 숨김. 새 버전 발견 시 표시
+        self._latest_download_url = None
 
         self.update_status_label = ttk.Label(
             update_frame, textvariable=self.update_status_var,
             font=(FONT, 9), foreground=FG_DIM)
-        self.update_status_label.pack(side=tk.LEFT)
+        self.update_status_label.pack(side=tk.LEFT, padx=(6, 0))
 
         # ── 구분선 ──
         sep2 = ttk.Frame(container, height=1)
@@ -597,6 +604,7 @@ class SlinkGUI:
         """GitHub Releases API로 최신 버전을 확인한다."""
         self.update_status_var.set("Checking...")
         self.btn_check_update.configure(state="disabled")
+        self._latest_download_url = None
 
         def check():
             try:
@@ -607,26 +615,140 @@ class SlinkGUI:
 
                 latest = data.get("tag_name", "").lstrip("v")
                 if not latest:
-                    self.root.after(0, lambda: self._update_result("Could not determine latest version"))
+                    self.root.after(0, lambda: self._update_result(
+                        "Could not determine latest version"))
                     return
+
+                # .exe 다운로드 URL 찾기
+                download_url = None
+                for asset in data.get("assets", []):
+                    if asset["name"].lower().endswith(".exe"):
+                        download_url = asset["browser_download_url"]
+                        break
 
                 if latest == APP_VERSION:
                     self.root.after(0, lambda: self._update_result(
                         f"✓ Up to date (v{APP_VERSION})"))
                 else:
                     self.root.after(0, lambda: self._update_result(
-                        f"New version available: v{latest}", is_new=True))
+                        f"v{latest} available!", is_new=True,
+                        download_url=download_url))
 
             except Exception as e:
-                self.root.after(0, lambda: self._update_result(f"Check failed: {e}"))
+                self.root.after(0, lambda: self._update_result(
+                    f"Check failed: {e}"))
 
         threading.Thread(target=check, daemon=True).start()
 
-    def _update_result(self, message: str, is_new: bool = False):
+    def _update_result(self, message: str, is_new: bool = False,
+                       download_url: str = None):
         self.update_status_var.set(message)
         self.btn_check_update.configure(state="normal")
+
         if is_new:
             self.update_status_label.configure(foreground="#bb4444")
+            self._latest_download_url = download_url
+            if download_url:
+                self.btn_do_update.pack(side=tk.LEFT, padx=(6, 0),
+                                         before=self.update_status_label)
+        else:
+            self.update_status_label.configure(foreground="#999999")
+            self.btn_do_update.pack_forget()
+
+    def _on_do_update(self):
+        """최신 .exe를 다운로드하고 현재 실행 파일을 교체한 뒤 재시작한다."""
+        if not self._latest_download_url:
+            self.update_status_var.set("No download URL available")
+            return
+
+        self.btn_do_update.configure(state="disabled")
+        self.update_status_var.set("Downloading...")
+
+        def download_and_replace():
+            try:
+                import os
+                import subprocess
+                import tempfile
+
+                current_exe = os.path.abspath(sys.argv[0])
+                is_frozen = getattr(sys, 'frozen', False)
+
+                if is_frozen:
+                    # .exe로 실행 중 → .exe 교체
+                    new_path = current_exe + ".new"
+                    old_path = current_exe + ".old"
+
+                    # 다운로드
+                    req = urllib.request.Request(
+                        self._latest_download_url,
+                        headers={"User-Agent": APP_NAME})
+                    with urllib.request.urlopen(req, timeout=60) as resp:
+                        with open(new_path, "wb") as f:
+                            while True:
+                                chunk = resp.read(8192)
+                                if not chunk:
+                                    break
+                                f.write(chunk)
+
+                    # 교체 배치 스크립트 생성:
+                    # 현재 프로세스 종료 대기 → old로 이름변경 → new를 원래이름으로 → 실행 → old 삭제
+                    bat_path = os.path.join(tempfile.gettempdir(), "slink_update.bat")
+                    with open(bat_path, "w") as bat:
+                        bat.write(f"""@echo off
+ping 127.0.0.1 -n 3 > nul
+if exist "{old_path}" del /f "{old_path}"
+move /y "{current_exe}" "{old_path}"
+move /y "{new_path}" "{current_exe}"
+start "" "{current_exe}"
+del /f "{old_path}"
+del /f "%~f0"
+""")
+
+                    self.root.after(0, lambda: self._execute_update(bat_path))
+
+                else:
+                    # .py로 실행 중 → slink.py 교체
+                    # GitHub에서 최신 slink.py raw 파일 다운로드
+                    raw_url = f"https://raw.githubusercontent.com/{APP_REPO}/master/slink.py"
+                    req = urllib.request.Request(
+                        raw_url, headers={"User-Agent": APP_NAME})
+                    with urllib.request.urlopen(req, timeout=30) as resp:
+                        new_code = resp.read()
+
+                    with open(current_exe, "wb") as f:
+                        f.write(new_code)
+
+                    self.root.after(0, lambda: self._restart_app())
+
+            except Exception as e:
+                self.root.after(0, lambda: self._update_error(str(e)))
+
+        threading.Thread(target=download_and_replace, daemon=True).start()
+
+    def _execute_update(self, bat_path: str):
+        """배치 스크립트를 실행하고 앱을 종료한다."""
+        import subprocess
+        self.core.restore_all()
+        if self.tray_icon:
+            self.tray_icon.stop()
+        subprocess.Popen(["cmd", "/c", bat_path],
+                          creationflags=0x00000008)  # DETACHED_PROCESS
+        self.root.destroy()
+        sys.exit(0)
+
+    def _restart_app(self):
+        """현재 앱을 재시작한다. (.py 모드)"""
+        import subprocess
+        self.core.restore_all()
+        if self.tray_icon:
+            self.tray_icon.stop()
+        subprocess.Popen([sys.executable] + sys.argv)
+        self.root.destroy()
+        sys.exit(0)
+
+    def _update_error(self, error: str):
+        self.update_status_var.set(f"Update failed: {error}")
+        self.btn_do_update.configure(state="normal")
 
     # ── 시스템 트레이 ──
     def _setup_tray(self):
@@ -760,7 +882,6 @@ class SlinkGUI:
 # 진입점
 # ──────────────────────────────────────────────
 if __name__ == "__main__":
-    import sys
     import platform
 
     if platform.system() != "Windows":
