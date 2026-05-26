@@ -21,11 +21,31 @@ jobs:
           pip install pyinstaller
 
       - name: Build exe
-        run: |
-          dir
-          dir slink
-          pyinstaller Slink.spec --noconfirm
-          dir dist
+        run: >
+          pyinstaller
+          --onefile
+          --windowed
+          --name Slink
+          --icon=slink.ico
+          --add-data "slink.ico;."
+          --add-data "slink.png;."
+          --hidden-import comtypes
+          --hidden-import comtypes.stream
+          --hidden-import comtypes.client
+          --hidden-import pystray
+          --hidden-import pystray._win32
+          --hidden-import PIL
+          --hidden-import PIL.Image
+          --hidden-import PIL.ImageDraw
+          --hidden-import slink
+          --hidden-import slink.core
+          --hidden-import slink.gui
+          --hidden-import slink.win32
+          --hidden-import slink.tray
+          --hidden-import slink.updater
+          --hidden-import slink.resources
+          --noconfirm
+          slink.py
 
       - name: Upload exe to Release
         uses: softprops/action-gh-release@v2
