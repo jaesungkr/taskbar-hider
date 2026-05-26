@@ -18,6 +18,14 @@ from slink.core import SlinkCore
 from slink.gui import SlinkGUI
 
 if __name__ == "__main__":
+    import ctypes
+    # 단일 인스턴스 — Mutex로 중복 실행 방지
+    mutex = ctypes.windll.kernel32.CreateMutexW(None, True, "Global\\SlinkAppMutex")
+    if ctypes.windll.kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
+        ctypes.windll.user32.MessageBoxW(
+            None, "Slink is already running.", "Slink", 0x40)
+        sys.exit(0)
+
     core = SlinkCore()
     gui = SlinkGUI(core)
     gui.run()
