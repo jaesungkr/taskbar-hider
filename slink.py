@@ -310,7 +310,7 @@ class SlinkGUI:
         self.root = tk.Tk()
         self.root.title("Slink")
         self.root.geometry("720x700")
-        self.root.configure(bg="#181825")
+        self.root.configure(bg="#ffffff")
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
         self._apply_style()
@@ -324,68 +324,67 @@ class SlinkGUI:
         style.theme_use("clam")
 
         FONT = "Malgun Gothic"
-        BG = "#181825"
-        BG_CARD = "#1e1e2e"
-        FG = "#cdd6f4"
-        FG_DIM = "#6c7086"
-        ACCENT = "#89b4fa"
-        SURFACE = "#313244"
-        HOVER = "#45475a"
+        BG = "#ffffff"
+        FG = "#111111"
+        FG_DIM = "#888888"
+        BORDER = "#cccccc"
+        SURFACE = "#f5f5f5"
+        HOVER = "#e8e8e8"
+        SELECT = "#d0d0d0"
 
         style.configure("TFrame", background=BG)
         style.configure("TLabel", background=BG, foreground=FG,
                          font=(FONT, 10))
         style.configure("Title.TLabel", font=(FONT, 16, "bold"),
-                         foreground=ACCENT, background=BG)
+                         foreground="#000000", background=BG)
         style.configure("Section.TLabel", font=(FONT, 9),
                          foreground=FG_DIM, background=BG)
 
         # 기본 버튼
         style.configure("TButton", font=(FONT, 10), padding=(12, 6),
-                         background=SURFACE, foreground=FG, borderwidth=0)
+                         background=SURFACE, foreground=FG,
+                         borderwidth=1, relief="solid")
         style.map("TButton",
-                   background=[("active", HOVER)],
-                   foreground=[("active", FG)])
+                   background=[("active", HOVER)])
 
-        # Hide 버튼 — 빨간 계열
+        # Hide 버튼 — 검정
         style.configure("Hide.TButton", font=(FONT, 10, "bold"),
-                         padding=(14, 7), background="#f38ba8",
-                         foreground="#181825", borderwidth=0)
+                         padding=(14, 7), background="#111111",
+                         foreground="#ffffff", borderwidth=0)
         style.map("Hide.TButton",
-                   background=[("active", "#eba0ac")],
-                   foreground=[("active", "#181825")])
+                   background=[("active", "#333333")],
+                   foreground=[("active", "#ffffff")])
 
-        # Show 버튼 — 초록 계열
+        # Show 버튼 — 흰색 + 검정 테두리
         style.configure("Show.TButton", font=(FONT, 10, "bold"),
-                         padding=(14, 7), background="#a6e3a1",
-                         foreground="#181825", borderwidth=0)
+                         padding=(14, 7), background="#ffffff",
+                         foreground="#111111", borderwidth=1, relief="solid")
         style.map("Show.TButton",
-                   background=[("active", "#b4e8b0")],
-                   foreground=[("active", "#181825")])
+                   background=[("active", "#f0f0f0")])
 
         # Quit 버튼
         style.configure("Quit.TButton", font=(FONT, 9),
-                         padding=(10, 6), background="#45475a",
-                         foreground="#f38ba8", borderwidth=0)
+                         padding=(10, 6), background=SURFACE,
+                         foreground="#cc0000", borderwidth=1, relief="solid")
         style.map("Quit.TButton",
-                   background=[("active", "#585b70")])
+                   background=[("active", HOVER)])
 
         # Treeview
         style.configure("Treeview",
-                         background=SURFACE,
+                         background="#ffffff",
                          foreground=FG,
-                         fieldbackground=SURFACE,
+                         fieldbackground="#ffffff",
                          font=(FONT, 9),
-                         rowheight=30,
-                         borderwidth=0)
+                         rowheight=28,
+                         borderwidth=1, relief="solid")
         style.configure("Treeview.Heading",
-                         background=HOVER,
-                         foreground=FG,
+                         background="#111111",
+                         foreground="#ffffff",
                          font=(FONT, 9, "bold"),
                          borderwidth=0)
         style.map("Treeview",
-                   background=[("selected", "#585b70")],
-                   foreground=[("selected", "#f5e0dc")])
+                   background=[("selected", SELECT)],
+                   foreground=[("selected", "#000000")])
 
     def _build_ui(self):
         # ── 상단 헤더 ──
@@ -462,7 +461,7 @@ class SlinkGUI:
         # ── 상태바 ──
         self.status_var = tk.StringVar(value="Ready")
         status_bar = ttk.Label(self.root, textvariable=self.status_var,
-                                font=("Malgun Gothic", 8), foreground="#6c7086")
+                                font=("Malgun Gothic", 8), foreground="#888888")
         status_bar.pack(fill=tk.X, padx=20, pady=(0, 10))
 
     # ── 시스템 트레이 ──
@@ -473,10 +472,10 @@ class SlinkGUI:
             from PIL import Image, ImageDraw
 
             # 16x16 아이콘 생성
-            img = Image.new("RGB", (64, 64), "#181825")
+            img = Image.new("RGB", (64, 64), "#ffffff")
             draw = ImageDraw.Draw(img)
-            draw.rounded_rectangle([8, 8, 56, 56], radius=10, fill="#89b4fa")
-            draw.text((20, 14), "S", fill="#181825")
+            draw.rounded_rectangle([8, 8, 56, 56], radius=10, fill="#111111")
+            draw.text((20, 14), "S", fill="#ffffff")
 
             menu = pystray.Menu(
                 pystray.MenuItem("Show", self._tray_show, default=True),
