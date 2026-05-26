@@ -42,7 +42,7 @@ The **Settings tab** shows app info, version, and has a one-click update checker
 
 ```powershell
 pip install pyinstaller
-pyinstaller --onefile --windowed --name Slink slink.py
+pyinstaller --onefile --windowed --icon=slink.ico --add-data "slink.ico;." --add-data "slink.png;." --name Slink slink.py
 ```
 
 Output: `dist/Slink.exe`

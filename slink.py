@@ -31,7 +31,7 @@ import json
 # 앱 정보
 # ──────────────────────────────────────────────
 APP_NAME = "Slink"
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.2.0"
 APP_AUTHOR = "ja2sng"
 APP_REPO = "jaesungkr/slink"
 APP_GITHUB = f"https://github.com/{APP_REPO}"
@@ -337,6 +337,16 @@ class SlinkGUI:
         self.root.geometry("720x700")
         self.root.configure(bg="#fafaf8")
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+
+        # 윈도우 아이콘 설정
+        import os
+        if getattr(sys, 'frozen', False):
+            base_dir = os.path.dirname(sys.executable)
+        else:
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+        ico_path = os.path.join(base_dir, "slink.ico")
+        if os.path.exists(ico_path):
+            self.root.iconbitmap(ico_path)
 
         self._apply_style()
         self._build_ui()
@@ -789,13 +799,25 @@ del /f "%~f0"
         """시스템 트레이 아이콘을 생성한다."""
         try:
             import pystray
-            from PIL import Image, ImageDraw
+            from PIL import Image
+            import os
 
-            # 16x16 아이콘 생성
-            img = Image.new("RGB", (64, 64), "#ffffff")
-            draw = ImageDraw.Draw(img)
-            draw.rounded_rectangle([8, 8, 56, 56], radius=10, fill="#111111")
-            draw.text((20, 14), "S", fill="#ffffff")
+            # 아이콘 파일 찾기 (exe 번들 또는 스크립트 위치)
+            if getattr(sys, 'frozen', False):
+                base_dir = os.path.dirname(sys.executable)
+            else:
+                base_dir = os.path.dirname(os.path.abspath(__file__))
+
+            icon_path = os.path.join(base_dir, "slink.png")
+
+            if os.path.exists(icon_path):
+                img = Image.open(icon_path)
+            else:
+                # 폴백: 간단한 아이콘 생성
+                from PIL import ImageDraw
+                img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+                draw = ImageDraw.Draw(img)
+                draw.ellipse([8, 8, 56, 56], fill="#1a1a1a")
 
             menu = pystray.Menu(
                 pystray.MenuItem("Show", self._tray_show, default=True),
