@@ -79,12 +79,18 @@ if not errorlevel 1 (
     goto wait
 )
 ping 127.0.0.1 -n 3 >nul
+:cleantmp
 for /d %%i in ("%TEMP%\\_MEI*") do rmdir /s /q "%%i" 2>nul
 ping 127.0.0.1 -n 2 >nul
+for /d %%i in ("%TEMP%\\_MEI*") do (
+    ping 127.0.0.1 -n 3 >nul
+    rmdir /s /q "%%i" 2>nul
+)
 if exist "{old_path}" del /f "{old_path}"
 move /y "{app_exe}" "{old_path}"
 move /y "{new_path}" "{app_exe}"
 if exist "{old_path}" del /f "{old_path}"
+ping 127.0.0.1 -n 5 >nul
 start "" "{app_exe}"
 ping 127.0.0.1 -n 3 >nul
 del /f "%~f0"
