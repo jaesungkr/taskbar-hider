@@ -69,23 +69,26 @@ def download_and_apply(download_url: str, on_done, on_error):
 
                 # 배치 스크립트: PID 종료 대기 → 파일 교체 → 재시작
                 bat_path = os.path.join(tempfile.gettempdir(), "slink_update.bat")
-                pid = os.getpid()
-                with open(bat_path, "w") as bat:
+                with open(bat_path, "w", encoding="ascii", errors="replace") as bat:
                     bat.write(f"""@echo off
-:wait
-tasklist /FI "PID eq {pid}" 2>nul | find "{pid}" >nul
-if not errorlevel 1 (
-    timeout /t 1 /nobreak >nul
-    goto wait
-)
-timeout /t 1 /nobreak >nul
+timeout /t 5 /nobreak >nul
 if exist "{old_path}" del /f "{old_path}"
-move /y "{app_exe}" "{old_path}"
-move /y "{new_path}" "{app_exe}"
+rename "{app_exe}" "{os.path.basename(old_path)}"
+if errorlevel 1 (
+    echo FAILED to rename old exe >> "{bat_path}.log"
+    exit /b 1
+)
+rename "{new_path}" "{os.path.basename(app_exe)}"
+if errorlevel 1 (
+    echo FAILED to rename new exe >> "{bat_path}.log"
+    rename "{old_path}" "{os.path.basename(app_exe)}"
+    exit /b 1
+)
 start "" "{app_exe}"
 timeout /t 3 /nobreak >nul
-del /f "{old_path}"
+if exist "{old_path}" del /f "{old_path}"
 del /f "%~f0"
+del /f "{bat_path}.log"
 """)
 
                 def restart():
