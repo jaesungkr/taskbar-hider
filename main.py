@@ -1,23 +1,57 @@
 """Slink — Hide app buttons from the Windows taskbar.
 
 Usage:
-    python slink.py
+    python main.py
     or build with: pyinstaller Slink.spec
 """
 
 import sys
+import os
 import platform
 
 if platform.system() != "Windows":
     print("Slink is Windows-only.")
-    print("Run on Windows: python slink.py")
+    print("Run on Windows: python main.py")
     print("Build:          pyinstaller Slink.spec")
     sys.exit(1)
 
-from slink.core import SlinkCore
-from slink.gui import SlinkGUI
+
+def cleanup_old_mei():
+    """이전 PyInstaller _MEI 임시 폴더를 정리한다.
+
+    --onefile 모드에서 업데이트 후 재시작 시
+    이전 프로세스의 _MEI 폴더가 남아있으면 DLL 충돌이 발생한다.
+    현재 프로세스의 _MEI 폴더를 제외하고 나머지를 삭제한다.
+    """
+    if not getattr(sys, 'frozen', False):
+        return
+
+    import shutil
+    import tempfile
+
+    tmp = tempfile.gettempdir()
+    # 현재 프로세스가 사용 중인 _MEI 폴더
+    current_mei = getattr(sys, '_MEIPASS', '')
+
+    try:
+        for item in os.listdir(tmp):
+            if item.startswith('_MEI') and os.path.isdir(os.path.join(tmp, item)):
+                path = os.path.join(tmp, item)
+                # 현재 사용 중인 폴더는 건드리지 않음
+                if path == current_mei:
+                    continue
+                try:
+                    shutil.rmtree(path, ignore_errors=True)
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
 
 if __name__ == "__main__":
+    # 이전 _MEI 잔여 폴더 정리 (DLL 충돌 방지)
+    cleanup_old_mei()
+
     import ctypes
 
     # 단일 인스턴스 — Mutex로 중복 실행 방지
@@ -26,6 +60,9 @@ if __name__ == "__main__":
         ctypes.windll.user32.MessageBoxW(
             None, "Slink is already running.", "Slink", 0x40)
         sys.exit(0)
+
+    from slink.core import SlinkCore
+    from slink.gui import SlinkGUI
 
     core = SlinkCore()
     gui = SlinkGUI(core)
