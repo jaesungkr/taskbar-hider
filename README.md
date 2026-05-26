@@ -1,4 +1,4 @@
-# TaskbarHider
+# Slink
 
 A lightweight tool to hide specific app buttons from the Windows taskbar while keeping them running in the background.
 
@@ -8,7 +8,7 @@ A lightweight tool to hide specific app buttons from the Windows taskbar while k
 
 ## How It Works
 
-TaskbarHider modifies the [Extended Window Style](https://learn.microsoft.com/en-us/windows/win32/winmsg/extended-window-styles) of a target window:
+Slink modifies the [Extended Window Style](https://learn.microsoft.com/en-us/windows/win32/winmsg/extended-window-styles) of a target window:
 
 - Removes `WS_EX_APPWINDOW` — disables taskbar visibility
 - Adds `WS_EX_TOOLWINDOW` — excludes the window from the taskbar entirely
@@ -18,9 +18,9 @@ The application itself keeps running normally. You can still access hidden windo
 ## Quick Start
 
 ```powershell
-git clone https://github.com/jaesungkr/taskbar-hider.git
-cd taskbar-hider
-python taskbar_hider.py
+git clone https://github.com/jaesungkr/slink.git
+cd slink
+python slink.py
 ```
 
 No external dependencies — uses only Python standard libraries (`ctypes`, `tkinter`).
@@ -38,13 +38,13 @@ No external dependencies — uses only Python standard libraries (`ctypes`, `tki
 
 ```powershell
 pip install pyinstaller
-pyinstaller --onefile --windowed --name TaskbarHider taskbar_hider.py
+pyinstaller --onefile --windowed --name Slink slink.py
 ```
 
-The standalone executable will be generated at `dist/TaskbarHider.exe`.
+The standalone executable will be generated at `dist/Slink.exe`.
 
 ## Notes
 
 - All hidden windows are automatically restored when the program exits.
-- To hide windows from apps running as Administrator, run TaskbarHider as Administrator too.
+- To hide windows from apps running as Administrator, run Slink as Administrator too.
 - Some UWP apps (Microsoft Store apps) may have limited support.
