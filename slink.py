@@ -323,7 +323,7 @@ class SlinkGUI:
         style = ttk.Style()
         style.theme_use("clam")
 
-        FONT = "Malgun Gothic"
+        FONT = "Consolas"
         BG = "#181825"
         BG_CARD = "#1e1e2e"
         FG = "#cdd6f4"
@@ -394,7 +394,7 @@ class SlinkGUI:
 
         ttk.Label(header, text="Slink", style="Title.TLabel").pack(side=tk.LEFT)
 
-        self.btn_restore_all = ttk.Button(header, text="Restore All && Quit",
+        self.btn_restore_all = ttk.Button(header, text="Restore All and Quit",
                                            command=self._on_quit, style="Quit.TButton")
         self.btn_restore_all.pack(side=tk.RIGHT)
 
@@ -462,7 +462,7 @@ class SlinkGUI:
         # ── 상태바 ──
         self.status_var = tk.StringVar(value="Ready")
         status_bar = ttk.Label(self.root, textvariable=self.status_var,
-                                font=("Malgun Gothic", 8), foreground="#6c7086")
+                                font=("Consolas", 8), foreground="#6c7086")
         status_bar.pack(fill=tk.X, padx=20, pady=(0, 10))
 
     # ── 시스템 트레이 ──
