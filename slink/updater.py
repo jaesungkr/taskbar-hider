@@ -7,6 +7,7 @@ import sys
 import tempfile
 import threading
 import urllib.request
+import zipfile
 
 from slink import APP_NAME, APP_VERSION, APP_REPO
 
@@ -30,7 +31,8 @@ def check_for_update(callback):
 
             download_url = None
             for asset in data.get("assets", []):
-                if asset["name"].lower().endswith(".exe"):
+                name = asset["name"].lower()
+                if name.endswith(".zip") or name.endswith(".exe"):
                     download_url = asset["browser_download_url"]
                     break
 
@@ -46,34 +48,73 @@ def check_for_update(callback):
 
 
 def download_and_apply(download_url: str, on_done, on_error):
-    """최신 버전을 다운로드하고 교체한다.
-
-    on_done(restart_func) — 메인 스레드에서 호출
-    on_error(message: str) — 메인 스레드에서 호출
-    """
+    """최신 버전을 다운로드하고 교체한다."""
     def _download():
         try:
-            current_exe = os.path.abspath(sys.argv[0])
             is_frozen = getattr(sys, 'frozen', False)
 
             if is_frozen:
-                new_path = current_exe + ".new"
-                old_path = current_exe + ".old"
+                # .exe 모드 — zip 또는 exe 다운로드 후 폴더 교체
+                app_dir = os.path.dirname(os.path.abspath(sys.executable))
+                app_exe = os.path.abspath(sys.executable)
+                tmp_dir = tempfile.mkdtemp(prefix="slink_update_")
+                download_path = os.path.join(tmp_dir, "update_download")
 
+                # 다운로드
                 req = urllib.request.Request(
                     download_url, headers={"User-Agent": APP_NAME})
-                with urllib.request.urlopen(req, timeout=60) as resp:
-                    with open(new_path, "wb") as f:
+                with urllib.request.urlopen(req, timeout=120) as resp:
+                    with open(download_path, "wb") as f:
                         while True:
                             chunk = resp.read(8192)
                             if not chunk:
                                 break
                             f.write(chunk)
 
+                # zip이면 풀기, exe면 그대로
+                if download_url.lower().endswith(".zip"):
+                    extract_dir = os.path.join(tmp_dir, "extracted")
+                    with zipfile.ZipFile(download_path, 'r') as zf:
+                        zf.extractall(extract_dir)
+                    # zip 안에 Slink 폴더가 있을 수 있음
+                    contents = os.listdir(extract_dir)
+                    if len(contents) == 1 and os.path.isdir(
+                            os.path.join(extract_dir, contents[0])):
+                        source_dir = os.path.join(extract_dir, contents[0])
+                    else:
+                        source_dir = extract_dir
+                else:
+                    # 단일 exe
+                    source_dir = None
+
                 bat_path = os.path.join(tempfile.gettempdir(), "slink_update.bat")
                 pid = os.getpid()
-                with open(bat_path, "w") as bat:
-                    bat.write(f"""@echo off
+
+                if source_dir:
+                    # 폴더 교체 방식
+                    with open(bat_path, "w") as bat:
+                        bat.write(f"""@echo off
+echo Waiting for Slink to close...
+:wait
+tasklist /FI "PID eq {pid}" 2>nul | find "{pid}" >nul
+if not errorlevel 1 (
+    timeout /t 1 /nobreak >nul
+    goto wait
+)
+timeout /t 1 /nobreak >nul
+echo Updating files...
+xcopy /s /y /q "{source_dir}\\*" "{app_dir}\\"
+echo Starting Slink...
+start "" "{app_exe}"
+timeout /t 2 /nobreak >nul
+rmdir /s /q "{tmp_dir}"
+del /f "%~f0"
+""")
+                else:
+                    # 단일 exe 교체
+                    old_path = app_exe + ".old"
+                    with open(bat_path, "w") as bat:
+                        bat.write(f"""@echo off
 echo Waiting for Slink to close...
 :wait
 tasklist /FI "PID eq {pid}" 2>nul | find "{pid}" >nul
@@ -83,11 +124,12 @@ if not errorlevel 1 (
 )
 timeout /t 1 /nobreak >nul
 if exist "{old_path}" del /f "{old_path}"
-move /y "{current_exe}" "{old_path}"
-move /y "{new_path}" "{current_exe}"
-start "" "{current_exe}"
+move /y "{app_exe}" "{old_path}"
+move /y "{download_path}" "{app_exe}"
+start "" "{app_exe}"
 timeout /t 2 /nobreak >nul
 del /f "{old_path}"
+rmdir /s /q "{tmp_dir}"
 del /f "%~f0"
 """)
 
@@ -99,13 +141,15 @@ del /f "%~f0"
                 on_done(restart)
 
             else:
-                raw_url = f"https://raw.githubusercontent.com/{APP_REPO}/master/slink.py"
+                # .py 모드 — main.py 교체
+                current_file = os.path.abspath(sys.argv[0])
+                raw_url = f"https://raw.githubusercontent.com/{APP_REPO}/master/main.py"
                 req = urllib.request.Request(
                     raw_url, headers={"User-Agent": APP_NAME})
                 with urllib.request.urlopen(req, timeout=30) as resp:
                     new_code = resp.read()
 
-                with open(current_exe, "wb") as f:
+                with open(current_file, "wb") as f:
                     f.write(new_code)
 
                 def restart():

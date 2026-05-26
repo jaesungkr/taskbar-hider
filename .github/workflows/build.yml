@@ -25,10 +25,14 @@ jobs:
 
       - name: Build exe
         run: |
-          python -m PyInstaller --onefile --windowed --name Slink --icon=slink.ico --add-data "slink.ico;." --add-data "slink.png;." --noconfirm main.py
+          python -m PyInstaller --onedir --windowed --name Slink --icon=slink.ico --add-data "slink.ico;." --add-data "slink.png;." --noconfirm main.py
 
-      - name: Upload exe to Release
+      - name: Create zip
+        run: |
+          Compress-Archive -Path dist/Slink -DestinationPath dist/Slink.zip
+
+      - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/Slink.exe
+          files: dist/Slink.zip
           generate_release_notes: true
