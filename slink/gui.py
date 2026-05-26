@@ -430,11 +430,10 @@ class SlinkGUI:
 
         def on_done(close_func):
             def _do():
-                from tkinter import messagebox
                 self.core.restore_all()
                 if self.tray_icon:
                     self.tray_icon.stop()
-                messagebox.showinfo("Slink", "Update complete. Please restart Slink.")
+                self.root.destroy()
                 close_func()
             self.root.after(0, _do)
 
