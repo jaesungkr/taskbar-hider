@@ -60,14 +60,20 @@ def is_window_visible(hwnd: int) -> bool:
     return bool(user32.IsWindowVisible(hwnd))
 
 
-def get_process_name(hwnd: int) -> str:
-    """창 핸들로부터 프로세스 이름을 가져온다."""
+def get_window_pid(hwnd: int) -> int:
+    """창 핸들로부터 PID를 가져온다."""
     pid = wintypes.DWORD()
     user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+    return pid.value
+
+
+def get_process_name(hwnd: int) -> str:
+    """창 핸들로부터 프로세스 이름을 가져온다."""
+    pid = get_window_pid(hwnd)
 
     PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
     kernel32 = ctypes.windll.kernel32
-    h_process = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid.value)
+    h_process = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
     if not h_process:
         return "unknown"
 
@@ -79,6 +85,20 @@ def get_process_name(hwnd: int) -> str:
         return full_path.rsplit("\\", 1)[-1] if full_path else "unknown"
     finally:
         kernel32.CloseHandle(h_process)
+
+
+def find_all_windows_by_pid(target_pid: int) -> list:
+    """특정 PID에 속하는 모든 최상위 창을 반환한다."""
+    results = []
+
+    def callback(hwnd, _lparam):
+        pid = get_window_pid(hwnd)
+        if pid == target_pid and is_window_visible(hwnd):
+            results.append(hwnd)
+        return True
+
+    user32.EnumWindows(WNDENUMPROC(callback), 0)
+    return results
 
 
 def enum_taskbar_windows() -> list:
@@ -132,28 +152,33 @@ class TaskbarHiderCore:
         self.hidden: Dict[int, HiddenWindow] = {}
 
     def hide_from_taskbar(self, hwnd: int, title: str, process: str) -> bool:
-        """작업표시줄에서 창 버튼을 숨긴다."""
+        """작업표시줄에서 창 버튼을 숨긴다. 같은 프로세스의 모든 창도 함께 처리."""
         if hwnd in self.hidden:
             return False
 
-        original_style = get_window_exstyle(hwnd)
+        # 같은 프로세스의 모든 창을 찾아서 함께 숨김
+        target_pid = get_window_pid(hwnd)
+        sibling_hwnds = find_all_windows_by_pid(target_pid)
 
-        # 1) 창을 잠시 숨김 (스타일 변경 반영을 위해)
-        user32.ShowWindow(hwnd, SW_HIDE)
+        for h in sibling_hwnds:
+            if h in self.hidden:
+                continue
 
-        # 2) 스타일 변경: APPWINDOW 제거 + TOOLWINDOW 추가
-        new_style = (original_style & ~WS_EX_APPWINDOW) | WS_EX_TOOLWINDOW
-        set_window_exstyle(hwnd, new_style)
+            original_style = get_window_exstyle(h)
+            h_title = get_window_text(h) or f"(child of {process})"
 
-        # 3) 다시 보이기
-        user32.ShowWindow(hwnd, SW_SHOW)
+            user32.ShowWindow(h, SW_HIDE)
+            new_style = (original_style & ~WS_EX_APPWINDOW) | WS_EX_TOOLWINDOW
+            set_window_exstyle(h, new_style)
+            user32.ShowWindow(h, SW_SHOW)
 
-        self.hidden[hwnd] = HiddenWindow(
-            hwnd=hwnd,
-            title=title,
-            process=process,
-            original_exstyle=original_style,
-        )
+            self.hidden[h] = HiddenWindow(
+                hwnd=h,
+                title=h_title,
+                process=process,
+                original_exstyle=original_style,
+            )
+
         return True
 
     def show_on_taskbar(self, hwnd: int) -> bool:
