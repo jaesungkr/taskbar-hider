@@ -217,7 +217,7 @@ class SlinkCore:
             self.taskbar_list = None
 
     def hide_from_taskbar(self, hwnd: int, title: str, process: str) -> bool:
-        """작업표시줄에서 창 버튼을 숨긴다. 같은 프로세스의 모든 창도 함께 처리."""
+        """작업표시줄에서 창 버튼을 숨기고 창도 최소화한다."""
         if hwnd in self.hidden:
             return False
 
@@ -232,16 +232,15 @@ class SlinkCore:
             original_style = get_window_exstyle(h)
             h_title = get_window_text(h) or f"(child of {process})"
 
-            # 방법 1: 창 스타일 변경
+            # 스타일 변경
             user32.ShowWindow(h, SW_HIDE)
             new_style = (original_style & ~WS_EX_APPWINDOW) | WS_EX_TOOLWINDOW
             set_window_exstyle(h, new_style)
-            user32.ShowWindow(h, SW_SHOWNOACTIVATE)
-            # Z-order 유지: 포커스 없이 원래 위치에 복원
-            user32.SetWindowPos(h, 0, 0, 0, 0, 0,
-                                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER)
 
-            # 방법 2: COM ITaskbarList3.DeleteTab으로 명시적 제거
+            # 창을 숨긴 상태로 유지 (최소화)
+            user32.ShowWindow(h, SW_HIDE)
+
+            # COM으로 명시적 제거
             if self.taskbar_list:
                 try:
                     self.taskbar_list.DeleteTab(h)
@@ -258,13 +257,13 @@ class SlinkCore:
         return True
 
     def show_on_taskbar(self, hwnd: int) -> bool:
-        """숨겨진 창을 다시 작업표시줄에 표시한다."""
+        """숨겨진 창을 복원하고 작업표시줄에 다시 표시한다."""
         if hwnd not in self.hidden:
             return False
 
         info = self.hidden[hwnd]
 
-        user32.ShowWindow(hwnd, SW_HIDE)
+        # 스타일 복원 후 창 다시 표시
         set_window_exstyle(hwnd, info.original_exstyle)
         user32.ShowWindow(hwnd, SW_SHOW)
 
@@ -291,13 +290,14 @@ class SlinkCore:
             has_toolwindow = bool(current_style & WS_EX_TOOLWINDOW)
 
             if not has_toolwindow:
-                # 앱이 스타일을 되돌린 경우 → 다시 적용
-                user32.ShowWindow(hwnd, SW_HIDE)
+                # 앱이 스타일을 되돌린 경우 → 다시 적용하고 숨김
                 new_style = (current_style & ~WS_EX_APPWINDOW) | WS_EX_TOOLWINDOW
                 set_window_exstyle(hwnd, new_style)
-                user32.ShowWindow(hwnd, SW_SHOWNOACTIVATE)
-                user32.SetWindowPos(hwnd, 0, 0, 0, 0, 0,
-                                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER)
+                user32.ShowWindow(hwnd, SW_HIDE)
+
+            # 창이 다시 보이게 된 경우 → 다시 숨김
+            if is_window_visible(hwnd):
+                user32.ShowWindow(hwnd, SW_HIDE)
 
             # COM으로도 다시 제거
             if self.taskbar_list:
