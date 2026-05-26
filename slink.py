@@ -323,7 +323,7 @@ class SlinkGUI:
         style = ttk.Style()
         style.theme_use("clam")
 
-        FONT = "Consolas"
+        FONT = "Malgun Gothic"
         BG = "#181825"
         BG_CARD = "#1e1e2e"
         FG = "#cdd6f4"
@@ -462,7 +462,7 @@ class SlinkGUI:
         # ── 상태바 ──
         self.status_var = tk.StringVar(value="Ready")
         status_bar = ttk.Label(self.root, textvariable=self.status_var,
-                                font=("Consolas", 8), foreground="#6c7086")
+                                font=("Malgun Gothic", 8), foreground="#6c7086")
         status_bar.pack(fill=tk.X, padx=20, pady=(0, 10))
 
     # ── 시스템 트레이 ──
