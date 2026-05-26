@@ -35,6 +35,13 @@ WS_EX_TOOLWINDOW = 0x00000080
 
 SW_HIDE = 0
 SW_SHOW = 5
+SW_SHOWNOACTIVATE = 4
+
+# SetWindowPos 상수
+SWP_NOMOVE = 0x0002
+SWP_NOSIZE = 0x0001
+SWP_NOACTIVATE = 0x0010
+SWP_NOZORDER = 0x0004
 
 WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
 
@@ -229,7 +236,10 @@ class SlinkCore:
             user32.ShowWindow(h, SW_HIDE)
             new_style = (original_style & ~WS_EX_APPWINDOW) | WS_EX_TOOLWINDOW
             set_window_exstyle(h, new_style)
-            user32.ShowWindow(h, SW_SHOW)
+            user32.ShowWindow(h, SW_SHOWNOACTIVATE)
+            # Z-order 유지: 포커스 없이 원래 위치에 복원
+            user32.SetWindowPos(h, 0, 0, 0, 0, 0,
+                                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER)
 
             # 방법 2: COM ITaskbarList3.DeleteTab으로 명시적 제거
             if self.taskbar_list:
@@ -285,7 +295,9 @@ class SlinkCore:
                 user32.ShowWindow(hwnd, SW_HIDE)
                 new_style = (current_style & ~WS_EX_APPWINDOW) | WS_EX_TOOLWINDOW
                 set_window_exstyle(hwnd, new_style)
-                user32.ShowWindow(hwnd, SW_SHOW)
+                user32.ShowWindow(hwnd, SW_SHOWNOACTIVATE)
+                user32.SetWindowPos(hwnd, 0, 0, 0, 0, 0,
+                                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER)
 
             # COM으로도 다시 제거
             if self.taskbar_list:
