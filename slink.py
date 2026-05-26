@@ -31,7 +31,7 @@ import json
 # 앱 정보
 # ──────────────────────────────────────────────
 APP_NAME = "Slink"
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
 APP_AUTHOR = "ja2sng"
 APP_REPO = "jaesungkr/slink"
 APP_GITHUB = f"https://github.com/{APP_REPO}"
