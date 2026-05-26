@@ -310,7 +310,7 @@ class SlinkGUI:
         self.root = tk.Tk()
         self.root.title("Slink")
         self.root.geometry("720x700")
-        self.root.configure(bg="#ffffff")
+        self.root.configure(bg="#fafaf8")
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
         self._apply_style()
@@ -324,19 +324,20 @@ class SlinkGUI:
         style.theme_use("clam")
 
         FONT = "Malgun Gothic"
-        BG = "#ffffff"
-        FG = "#111111"
-        FG_DIM = "#888888"
-        BORDER = "#cccccc"
-        SURFACE = "#f5f5f5"
-        HOVER = "#e8e8e8"
-        SELECT = "#d0d0d0"
+        BG = "#fafaf8"
+        FG = "#222222"
+        FG_DIM = "#999999"
+        SURFACE = "#f0efed"
+        HOVER = "#e6e5e3"
+        SELECT = "#dddcda"
+        HEAD_BG = "#333333"
+        HEAD_FG = "#f0efed"
 
         style.configure("TFrame", background=BG)
         style.configure("TLabel", background=BG, foreground=FG,
                          font=(FONT, 10))
         style.configure("Title.TLabel", font=(FONT, 16, "bold"),
-                         foreground="#000000", background=BG)
+                         foreground="#111111", background=BG)
         style.configure("Section.TLabel", font=(FONT, 9),
                          foreground=FG_DIM, background=BG)
 
@@ -347,25 +348,25 @@ class SlinkGUI:
         style.map("TButton",
                    background=[("active", HOVER)])
 
-        # Hide 버튼 — 검정
+        # Hide 버튼
         style.configure("Hide.TButton", font=(FONT, 10, "bold"),
-                         padding=(14, 7), background="#111111",
-                         foreground="#ffffff", borderwidth=0)
+                         padding=(14, 7), background="#333333",
+                         foreground="#f0efed", borderwidth=0)
         style.map("Hide.TButton",
-                   background=[("active", "#333333")],
-                   foreground=[("active", "#ffffff")])
+                   background=[("active", "#444444")],
+                   foreground=[("active", "#f0efed")])
 
-        # Show 버튼 — 흰색 + 검정 테두리
+        # Show 버튼
         style.configure("Show.TButton", font=(FONT, 10, "bold"),
-                         padding=(14, 7), background="#ffffff",
-                         foreground="#111111", borderwidth=1, relief="solid")
+                         padding=(14, 7), background=BG,
+                         foreground=FG, borderwidth=1, relief="solid")
         style.map("Show.TButton",
-                   background=[("active", "#f0f0f0")])
+                   background=[("active", HOVER)])
 
         # Quit 버튼
         style.configure("Quit.TButton", font=(FONT, 9),
                          padding=(10, 6), background=SURFACE,
-                         foreground="#cc0000", borderwidth=1, relief="solid")
+                         foreground="#bb4444", borderwidth=1, relief="solid")
         style.map("Quit.TButton",
                    background=[("active", HOVER)])
 
@@ -375,16 +376,16 @@ class SlinkGUI:
                          foreground=FG,
                          fieldbackground="#ffffff",
                          font=(FONT, 9),
-                         rowheight=28,
+                         rowheight=30,
                          borderwidth=1, relief="solid")
         style.configure("Treeview.Heading",
-                         background="#111111",
-                         foreground="#ffffff",
+                         background=HEAD_BG,
+                         foreground=HEAD_FG,
                          font=(FONT, 9, "bold"),
                          borderwidth=0)
         style.map("Treeview",
                    background=[("selected", SELECT)],
-                   foreground=[("selected", "#000000")])
+                   foreground=[("selected", "#111111")])
 
     def _build_ui(self):
         # ── 상단 헤더 ──
@@ -461,7 +462,7 @@ class SlinkGUI:
         # ── 상태바 ──
         self.status_var = tk.StringVar(value="Ready")
         status_bar = ttk.Label(self.root, textvariable=self.status_var,
-                                font=("Malgun Gothic", 8), foreground="#888888")
+                                font=("Malgun Gothic", 8), foreground="#999999")
         status_bar.pack(fill=tk.X, padx=20, pady=(0, 10))
 
     # ── 시스템 트레이 ──
