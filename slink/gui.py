@@ -322,6 +322,10 @@ class SlinkGUI:
         for w in windows:
             if w["hwnd"] == own_hwnd or w["hwnd"] in self.core.hidden:
                 continue
+            # Slink 자신은 목록에서 제외
+            proc = w["process"].lower()
+            if proc.startswith("slink") and proc.endswith(".exe"):
+                continue
             self.tree_visible.insert("", tk.END,
                 iid=hex(w["hwnd"]),
                 values=(w["process"], w["title"]))
