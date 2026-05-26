@@ -431,8 +431,10 @@ class SlinkGUI:
                 if self.tray_icon:
                     self.tray_icon.stop()
                 from tkinter import messagebox
-                messagebox.showinfo("Slink",
-                    "Update complete.\nPlease reopen Slink.")
+                messagebox.showinfo("Slink Update",
+                    "Download complete.\n\n"
+                    "Slink will now close to apply the update.\n"
+                    "Please wait a few seconds, then reopen Slink.")
                 close_func()
             self.root.after(0, _do)
 
