@@ -2,18 +2,17 @@
 TaskbarHider - Windows 작업표시줄에서 특정 앱 버튼을 숨기는 도구
 
 원리:
-  창의 확장 스타일에서 WS_EX_APPWINDOW를 제거하고 WS_EX_TOOLWINDOW를 추가하면
-  작업표시줄에서 해당 창의 버튼이 사라진다. 창 자체는 정상 실행 상태를 유지한다.
+  1차: 창의 확장 스타일(WS_EX_TOOLWINDOW)을 변경하여 작업표시줄에서 제거
+  2차: ITaskbarList3 COM 인터페이스로 명시적으로 탭을 삭제
+  일부 앱(게임 등)은 COM을 통해 직접 아이콘을 등록하므로 두 방법을 병행한다.
 
 사용법:
   1. python taskbar_hider.py 실행
-  2. 시스템 트레이 아이콘이 생성됨
-  3. 트레이 아이콘 좌클릭 → 관리 창 열기
-  4. 실행 중인 창 목록에서 숨기고 싶은 앱 선택 → Hide 버튼 클릭
-  5. 다시 보이게 하려면 → Show 버튼 클릭
+  2. GUI 창에서 숨기고 싶은 앱 선택 → Hide 버튼 클릭
+  3. 다시 보이게 하려면 → Show 버튼 클릭
 
 요구사항:
-  pip install pystray Pillow
+  pip install comtypes
 """
 
 import ctypes
@@ -28,6 +27,7 @@ from typing import Dict, Optional
 # Win32 API 상수 및 함수
 # ──────────────────────────────────────────────
 user32 = ctypes.windll.user32
+ole32 = ctypes.windll.ole32
 
 GWL_EXSTYLE = -20
 WS_EX_APPWINDOW = 0x00040000
@@ -37,6 +37,60 @@ SW_HIDE = 0
 SW_SHOW = 5
 
 WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+
+# ──────────────────────────────────────────────
+# ITaskbarList3 COM 인터페이스 (직접 정의)
+# ──────────────────────────────────────────────
+import comtypes
+import comtypes.client
+from comtypes import GUID, HRESULT, COMMETHOD
+from ctypes import POINTER
+
+class ITaskbarList(comtypes.IUnknown):
+    _iid_ = GUID("{56FDF342-FD6D-11d0-958A-006097C9A090}")
+    _methods_ = [
+        COMMETHOD([], HRESULT, "HrInit"),
+        COMMETHOD([], HRESULT, "AddTab", (["in"], wintypes.HWND, "hwnd")),
+        COMMETHOD([], HRESULT, "DeleteTab", (["in"], wintypes.HWND, "hwnd")),
+        COMMETHOD([], HRESULT, "ActivateTab", (["in"], wintypes.HWND, "hwnd")),
+        COMMETHOD([], HRESULT, "SetActiveAlt", (["in"], wintypes.HWND, "hwnd")),
+    ]
+
+class ITaskbarList2(ITaskbarList):
+    _iid_ = GUID("{602D4995-B13A-429b-A66E-1935E44F4317}")
+    _methods_ = [
+        COMMETHOD([], HRESULT, "MarkFullscreenWindow",
+                  (["in"], wintypes.HWND, "hwnd"),
+                  (["in"], wintypes.BOOL, "fFullscreen")),
+    ]
+
+# TBPFLAG enum values
+TBPF_NOPROGRESS = 0x00000000
+
+class ITaskbarList3(ITaskbarList2):
+    _iid_ = GUID("{ea1afb91-9e28-4b86-90e9-9e9f8a5eefaf}")
+    _methods_ = [
+        COMMETHOD([], HRESULT, "SetProgressValue",
+                  (["in"], wintypes.HWND, "hwnd"),
+                  (["in"], ctypes.c_ulonglong, "ullCompleted"),
+                  (["in"], ctypes.c_ulonglong, "ullTotal")),
+        COMMETHOD([], HRESULT, "SetProgressState",
+                  (["in"], wintypes.HWND, "hwnd"),
+                  (["in"], ctypes.c_int, "tbpFlags")),
+    ]
+
+CLSID_TaskbarList = GUID("{56FDF344-FD6D-11d0-958A-006097C9A090}")
+
+
+def create_taskbar_list() -> ITaskbarList3:
+    """ITaskbarList3 COM 객체를 생성한다."""
+    ole32.CoInitialize(None)
+    taskbar = comtypes.CoCreateInstance(
+        CLSID_TaskbarList, interface=ITaskbarList3
+    )
+    taskbar.HrInit()
+    return taskbar
 
 
 def get_window_text(hwnd: int) -> str:
@@ -150,6 +204,10 @@ class HiddenWindow:
 class TaskbarHiderCore:
     def __init__(self):
         self.hidden: Dict[int, HiddenWindow] = {}
+        try:
+            self.taskbar_list = create_taskbar_list()
+        except Exception:
+            self.taskbar_list = None
 
     def hide_from_taskbar(self, hwnd: int, title: str, process: str) -> bool:
         """작업표시줄에서 창 버튼을 숨긴다. 같은 프로세스의 모든 창도 함께 처리."""
@@ -167,10 +225,18 @@ class TaskbarHiderCore:
             original_style = get_window_exstyle(h)
             h_title = get_window_text(h) or f"(child of {process})"
 
+            # 방법 1: 창 스타일 변경
             user32.ShowWindow(h, SW_HIDE)
             new_style = (original_style & ~WS_EX_APPWINDOW) | WS_EX_TOOLWINDOW
             set_window_exstyle(h, new_style)
             user32.ShowWindow(h, SW_SHOW)
+
+            # 방법 2: COM ITaskbarList3.DeleteTab으로 명시적 제거
+            if self.taskbar_list:
+                try:
+                    self.taskbar_list.DeleteTab(h)
+                except Exception:
+                    pass
 
             self.hidden[h] = HiddenWindow(
                 hwnd=h,
@@ -191,6 +257,13 @@ class TaskbarHiderCore:
         user32.ShowWindow(hwnd, SW_HIDE)
         set_window_exstyle(hwnd, info.original_exstyle)
         user32.ShowWindow(hwnd, SW_SHOW)
+
+        # COM으로 다시 등록
+        if self.taskbar_list:
+            try:
+                self.taskbar_list.AddTab(hwnd)
+            except Exception:
+                pass
 
         del self.hidden[hwnd]
         return True
