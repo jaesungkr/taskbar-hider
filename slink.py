@@ -306,77 +306,120 @@ class SlinkCore:
 class SlinkGUI:
     def __init__(self, core: SlinkCore):
         self.core = core
+        self.tray_icon = None
         self.root = tk.Tk()
         self.root.title("Slink")
-        self.root.geometry("700x700")
-        self.root.configure(bg="#1e1e2e")
+        self.root.geometry("720x700")
+        self.root.configure(bg="#181825")
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
         self._apply_style()
         self._build_ui()
         self._refresh_list()
         self._start_watcher()
+        self._setup_tray()
 
     def _apply_style(self):
         style = ttk.Style()
         style.theme_use("clam")
 
-        style.configure("TFrame", background="#1e1e2e")
-        style.configure("TLabel", background="#1e1e2e", foreground="#cdd6f4",
-                         font=("Segoe UI", 10))
-        style.configure("Title.TLabel", font=("Segoe UI", 14, "bold"),
-                         foreground="#89b4fa")
-        style.configure("TButton", font=("Segoe UI", 10), padding=6)
-        style.configure("Accent.TButton", font=("Segoe UI", 10, "bold"))
+        FONT = "Malgun Gothic"
+        BG = "#181825"
+        BG_CARD = "#1e1e2e"
+        FG = "#cdd6f4"
+        FG_DIM = "#6c7086"
+        ACCENT = "#89b4fa"
+        SURFACE = "#313244"
+        HOVER = "#45475a"
+
+        style.configure("TFrame", background=BG)
+        style.configure("TLabel", background=BG, foreground=FG,
+                         font=(FONT, 10))
+        style.configure("Title.TLabel", font=(FONT, 16, "bold"),
+                         foreground=ACCENT, background=BG)
+        style.configure("Section.TLabel", font=(FONT, 9),
+                         foreground=FG_DIM, background=BG)
+
+        # 기본 버튼
+        style.configure("TButton", font=(FONT, 10), padding=(12, 6),
+                         background=SURFACE, foreground=FG, borderwidth=0)
+        style.map("TButton",
+                   background=[("active", HOVER)],
+                   foreground=[("active", FG)])
+
+        # Hide 버튼 — 빨간 계열
+        style.configure("Hide.TButton", font=(FONT, 10, "bold"),
+                         padding=(14, 7), background="#f38ba8",
+                         foreground="#181825", borderwidth=0)
+        style.map("Hide.TButton",
+                   background=[("active", "#eba0ac")],
+                   foreground=[("active", "#181825")])
+
+        # Show 버튼 — 초록 계열
+        style.configure("Show.TButton", font=(FONT, 10, "bold"),
+                         padding=(14, 7), background="#a6e3a1",
+                         foreground="#181825", borderwidth=0)
+        style.map("Show.TButton",
+                   background=[("active", "#b4e8b0")],
+                   foreground=[("active", "#181825")])
+
+        # Quit 버튼
+        style.configure("Quit.TButton", font=(FONT, 9),
+                         padding=(10, 6), background="#45475a",
+                         foreground="#f38ba8", borderwidth=0)
+        style.map("Quit.TButton",
+                   background=[("active", "#585b70")])
 
         # Treeview
         style.configure("Treeview",
-                         background="#313244",
-                         foreground="#cdd6f4",
-                         fieldbackground="#313244",
-                         font=("Segoe UI", 9),
-                         rowheight=28)
+                         background=SURFACE,
+                         foreground=FG,
+                         fieldbackground=SURFACE,
+                         font=(FONT, 9),
+                         rowheight=30,
+                         borderwidth=0)
         style.configure("Treeview.Heading",
-                         background="#45475a",
-                         foreground="#cdd6f4",
-                         font=("Segoe UI", 10, "bold"))
+                         background=HOVER,
+                         foreground=FG,
+                         font=(FONT, 9, "bold"),
+                         borderwidth=0)
         style.map("Treeview",
                    background=[("selected", "#585b70")],
                    foreground=[("selected", "#f5e0dc")])
 
     def _build_ui(self):
-        # ── 상단 제목 ──
+        # ── 상단 헤더 ──
         header = ttk.Frame(self.root)
-        header.pack(fill=tk.X, padx=16, pady=(16, 8))
+        header.pack(fill=tk.X, padx=20, pady=(20, 4))
 
         ttk.Label(header, text="Slink", style="Title.TLabel").pack(side=tk.LEFT)
 
-        # ── 버튼 바 ──
-        btn_frame = ttk.Frame(self.root)
-        btn_frame.pack(fill=tk.X, padx=16, pady=(0, 8))
-
-        self.btn_hide = ttk.Button(btn_frame, text="▼ Hide from Taskbar",
-                                    command=self._on_hide, style="Accent.TButton")
-        self.btn_hide.pack(side=tk.LEFT, padx=(0, 8))
-
-        self.btn_show = ttk.Button(btn_frame, text="▲ Show on Taskbar",
-                                    command=self._on_show, style="Accent.TButton")
-        self.btn_show.pack(side=tk.LEFT, padx=(0, 8))
-
-        self.btn_refresh = ttk.Button(btn_frame, text="↻ Refresh",
-                                       command=self._refresh_list)
-        self.btn_refresh.pack(side=tk.LEFT, padx=(0, 8))
-
-        self.btn_restore_all = ttk.Button(btn_frame, text="Restore All & Quit",
-                                           command=self._on_quit)
+        self.btn_restore_all = ttk.Button(header, text="Restore All && Quit",
+                                           command=self._on_quit, style="Quit.TButton")
         self.btn_restore_all.pack(side=tk.RIGHT)
 
+        # ── 버튼 바 ──
+        btn_frame = ttk.Frame(self.root)
+        btn_frame.pack(fill=tk.X, padx=20, pady=(8, 4))
+
+        self.btn_hide = ttk.Button(btn_frame, text="⬇  Hide",
+                                    command=self._on_hide, style="Hide.TButton")
+        self.btn_hide.pack(side=tk.LEFT, padx=(0, 6))
+
+        self.btn_show = ttk.Button(btn_frame, text="⬆  Show",
+                                    command=self._on_show, style="Show.TButton")
+        self.btn_show.pack(side=tk.LEFT, padx=(0, 6))
+
+        self.btn_refresh = ttk.Button(btn_frame, text="↻  Refresh",
+                                       command=self._refresh_list)
+        self.btn_refresh.pack(side=tk.LEFT)
+
         # ── 실행 중인 창 목록 ──
-        ttk.Label(self.root, text="실행 중인 창 (작업표시줄에 표시됨)").pack(
-            anchor=tk.W, padx=16, pady=(8, 4))
+        ttk.Label(self.root, text="VISIBLE WINDOWS",
+                   style="Section.TLabel").pack(anchor=tk.W, padx=20, pady=(12, 4))
 
         tree_frame = ttk.Frame(self.root)
-        tree_frame.pack(fill=tk.BOTH, expand=True, padx=16, pady=(0, 4))
+        tree_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0, 4))
 
         cols = ("hwnd", "process", "title")
         self.tree_visible = ttk.Treeview(tree_frame, columns=cols,
@@ -386,7 +429,7 @@ class SlinkGUI:
         self.tree_visible.heading("title", text="Window Title")
         self.tree_visible.column("hwnd", width=80, stretch=False)
         self.tree_visible.column("process", width=160, stretch=False)
-        self.tree_visible.column("title", width=400, stretch=True)
+        self.tree_visible.column("title", width=420, stretch=True)
 
         scrollbar = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL,
                                    command=self.tree_visible.yview)
@@ -395,11 +438,11 @@ class SlinkGUI:
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
         # ── 숨겨진 창 목록 ──
-        ttk.Label(self.root, text="숨겨진 창 (작업표시줄에서 제거됨)").pack(
-            anchor=tk.W, padx=16, pady=(8, 4))
+        ttk.Label(self.root, text="HIDDEN WINDOWS",
+                   style="Section.TLabel").pack(anchor=tk.W, padx=20, pady=(10, 4))
 
         hidden_frame = ttk.Frame(self.root)
-        hidden_frame.pack(fill=tk.BOTH, expand=True, padx=16, pady=(0, 16))
+        hidden_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0, 12))
 
         self.tree_hidden = ttk.Treeview(hidden_frame, columns=cols,
                                          show="headings", selectmode="extended")
@@ -408,7 +451,7 @@ class SlinkGUI:
         self.tree_hidden.heading("title", text="Window Title")
         self.tree_hidden.column("hwnd", width=80, stretch=False)
         self.tree_hidden.column("process", width=160, stretch=False)
-        self.tree_hidden.column("title", width=400, stretch=True)
+        self.tree_hidden.column("title", width=420, stretch=True)
 
         scrollbar2 = ttk.Scrollbar(hidden_frame, orient=tk.VERTICAL,
                                     command=self.tree_hidden.yview)
@@ -419,12 +462,50 @@ class SlinkGUI:
         # ── 상태바 ──
         self.status_var = tk.StringVar(value="Ready")
         status_bar = ttk.Label(self.root, textvariable=self.status_var,
-                                font=("Segoe UI", 9), foreground="#6c7086")
-        status_bar.pack(fill=tk.X, padx=16, pady=(0, 8))
+                                font=("Malgun Gothic", 8), foreground="#6c7086")
+        status_bar.pack(fill=tk.X, padx=20, pady=(0, 10))
+
+    # ── 시스템 트레이 ──
+    def _setup_tray(self):
+        """시스템 트레이 아이콘을 생성한다."""
+        try:
+            import pystray
+            from PIL import Image, ImageDraw
+
+            # 16x16 아이콘 생성
+            img = Image.new("RGB", (64, 64), "#181825")
+            draw = ImageDraw.Draw(img)
+            draw.rounded_rectangle([8, 8, 56, 56], radius=10, fill="#89b4fa")
+            draw.text((20, 14), "S", fill="#181825")
+
+            menu = pystray.Menu(
+                pystray.MenuItem("Show", self._tray_show, default=True),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem("Restore All & Quit", self._tray_quit),
+            )
+
+            self.tray_icon = pystray.Icon("slink", img, "Slink", menu)
+            tray_thread = threading.Thread(target=self.tray_icon.run, daemon=True)
+            tray_thread.start()
+        except ImportError:
+            # pystray 미설치 시 트레이 없이 동작
+            self.tray_icon = None
+
+    def _tray_show(self, icon=None, item=None):
+        """트레이에서 창을 다시 표시한다."""
+        self.root.after(0, self._restore_window)
+
+    def _restore_window(self):
+        self.root.deiconify()
+        self.root.lift()
+        self.root.focus_force()
+
+    def _tray_quit(self, icon=None, item=None):
+        """트레이에서 종료한다."""
+        self.root.after(0, self._on_quit)
 
     def _refresh_list(self):
         """창 목록을 새로고침한다."""
-        # 실행 중 목록 갱신
         for item in self.tree_visible.get_children():
             self.tree_visible.delete(item)
 
@@ -432,17 +513,14 @@ class SlinkGUI:
         own_hwnd = self.root.winfo_id()
 
         for w in windows:
-            # 자기 자신은 목록에서 제외
             if w["hwnd"] == own_hwnd:
                 continue
-            # 이미 숨긴 창은 제외
             if w["hwnd"] in self.core.hidden:
                 continue
             self.tree_visible.insert("", tk.END, values=(
                 hex(w["hwnd"]), w["process"], w["title"]
             ))
 
-        # 숨겨진 목록 갱신
         for item in self.tree_hidden.get_children():
             self.tree_hidden.delete(item)
 
@@ -452,15 +530,15 @@ class SlinkGUI:
             ))
 
         self.status_var.set(
-            f"표시 중: {len(self.tree_visible.get_children())}개  |  "
-            f"숨김: {len(self.core.hidden)}개"
+            f"Visible: {len(self.tree_visible.get_children())}  |  "
+            f"Hidden: {len(self.core.hidden)}"
         )
 
     def _on_hide(self):
         """선택한 창을 작업표시줄에서 숨긴다."""
         selected = self.tree_visible.selection()
         if not selected:
-            self.status_var.set("⚠ 숨길 창을 선택하세요")
+            self.status_var.set("⚠ Select a window to hide")
             return
 
         count = 0
@@ -472,14 +550,14 @@ class SlinkGUI:
             if self.core.hide_from_taskbar(hwnd, title, process):
                 count += 1
 
-        self.status_var.set(f"✓ {count}개 창을 작업표시줄에서 숨겼습니다")
+        self.status_var.set(f"✓ Hidden {count} window(s)")
         self._refresh_list()
 
     def _on_show(self):
         """선택한 창을 다시 작업표시줄에 표시한다."""
         selected = self.tree_hidden.selection()
         if not selected:
-            self.status_var.set("⚠ 복원할 창을 선택하세요")
+            self.status_var.set("⚠ Select a window to restore")
             return
 
         count = 0
@@ -489,7 +567,7 @@ class SlinkGUI:
             if self.core.show_on_taskbar(hwnd):
                 count += 1
 
-        self.status_var.set(f"✓ {count}개 창을 작업표시줄에 복원했습니다")
+        self.status_var.set(f"✓ Restored {count} window(s)")
         self._refresh_list()
 
     def _start_watcher(self):
@@ -501,12 +579,14 @@ class SlinkGUI:
         self._watcher_id = self.root.after(1000, tick)
 
     def _on_close(self):
-        """창 닫기 → 트레이로 최소화 (트레이 미사용 시 바로 종료)."""
-        self._on_quit()
+        """X 버튼 → 시스템 트레이로 최소화."""
+        self.root.withdraw()
 
     def _on_quit(self):
-        """모든 창 복원 후 종료."""
+        """모든 창 복원 후 완전 종료."""
         self.core.restore_all()
+        if self.tray_icon:
+            self.tray_icon.stop()
         self.root.destroy()
 
     def run(self):
@@ -524,7 +604,7 @@ if __name__ == "__main__":
         print("이 프로그램은 Windows에서만 실행 가능합니다.")
         print("Windows PC에서 다음 명령으로 실행하세요:")
         print()
-        print("  pip install Pillow")
+        print("  pip install -r requirements.txt")
         print("  python slink.py")
         print()
         print(".exe로 패키징하려면:")
