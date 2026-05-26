@@ -308,7 +308,7 @@ class TaskbarHiderGUI:
         self.core = core
         self.root = tk.Tk()
         self.root.title("TaskbarHider")
-        self.root.geometry("700x500")
+        self.root.geometry("700x700")
         self.root.configure(bg="#1e1e2e")
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
