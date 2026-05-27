@@ -25,7 +25,7 @@ jobs:
 
       - name: Build exe
         run: |
-          python -m PyInstaller --onefile --windowed --name Slink --icon=slink.ico --add-data "slink.ico;." --add-data "slink.png;." --hidden-import customtkinter --noconfirm main.py
+          python -m PyInstaller Slink.spec --noconfirm
 
       - name: Upload exe to Release
         uses: softprops/action-gh-release@v2
