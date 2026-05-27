@@ -46,6 +46,8 @@ class ApiHandler(BaseHTTPRequestHandler):
             self._json(self._get_windows())
         elif self.path == "/api/check_update":
             self._json(self._check_update())
+        elif self.path == "/api/do_update":
+            self._json(self._do_update())
         elif self.path == "/api/open_releases":
             import webbrowser
             webbrowser.open(f"{APP_GITHUB}/releases/latest")
@@ -73,8 +75,6 @@ class ApiHandler(BaseHTTPRequestHandler):
                 if _core.show_on_taskbar(hwnd):
                     count += 1
             self._json({"shown_count": count})
-        elif self.path == "/api/do_update":
-            self._json(self._do_update())
         else:
             self._json({"error": "not found"}, 404)
 
@@ -166,8 +166,6 @@ def _main_loop(window):
         on_show=lambda *_: _cmd_queue.put("show"),
         on_quit=lambda *_: _cmd_queue.put("quit"),
         icon_path=png)
-
-    print("[Slink] Tray icon:", "OK" if _tray else "FAILED")
 
     # enforce 루프
     def enforce():
