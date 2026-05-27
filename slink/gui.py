@@ -37,10 +37,14 @@ class Api:
     def get_windows(self):
         """작업표시줄에 표시된 창 목록 반환."""
         try:
+            import os
+            own_pid = os.getpid()
             windows = enum_taskbar_windows()
-            # pywebview 자신의 창은 제외
             visible = []
             for w in windows:
+                # 자기 자신 제외: PID 일치 or Slink.exe
+                if w.get("pid") == own_pid:
+                    continue
                 proc = w["process"].lower()
                 if proc.startswith("slink") and proc.endswith(".exe"):
                     continue
@@ -174,61 +178,11 @@ class SlinkGUI:
         if self.window:
             self.window.destroy()
 
-    def _hook_close_button(self):
-        """Win32 WndProc 서브클래싱으로 X 버튼을 트레이 숨김으로 변경.
-
-        pywebview closing 이벤트가 AccessibilityObject 재귀를 유발하므로
-        직접 Win32 API로 WM_CLOSE를 가로챈다.
-        """
-        import ctypes
-        import ctypes.wintypes as wintypes
-
-        user32 = ctypes.windll.user32
-        GWL_WNDPROC = -4
-        WM_CLOSE = 0x0010
-
-        WNDPROC = ctypes.WINFUNCTYPE(
-            ctypes.c_long, wintypes.HWND, ctypes.c_uint,
-            wintypes.WPARAM, wintypes.LPARAM
-        )
-
-        # Slink 창의 hwnd 찾기
-        hwnd = None
-        def enum_cb(h, _):
-            nonlocal hwnd
-            length = user32.GetWindowTextLengthW(h)
-            if length > 0:
-                buf = ctypes.create_unicode_buffer(length + 1)
-                user32.GetWindowTextW(h, buf, length + 1)
-                if buf.value == "Slink":
-                    pid = wintypes.DWORD()
-                    user32.GetWindowThreadProcessId(h, ctypes.byref(pid))
-                    import os
-                    if pid.value == os.getpid():
-                        hwnd = h
-                        return False
-            return True
-
-        WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
-        user32.EnumWindows(WNDENUMPROC(enum_cb), 0)
-
-        if not hwnd:
-            return
-
-        # 원래 WndProc 저장
-        old_proc = user32.GetWindowLongPtrW(hwnd, GWL_WNDPROC)
-
-        def new_proc(h, msg, wp, lp):
-            if msg == WM_CLOSE:
-                # X 버튼 → 트레이로 숨김
-                if self.window:
-                    self.window.hide()
-                return 0  # 닫기 차단
-            return user32.CallWindowProcW(old_proc, h, msg, wp, lp)
-
-        self._wndproc_ref = WNDPROC(new_proc)  # prevent GC
-        user32.SetWindowLongPtrW(hwnd, GWL_WNDPROC,
-                                  ctypes.cast(self._wndproc_ref, ctypes.c_void_p).value)
+    def _on_closing(self):
+        """OS X 버튼 → 트레이로 숨김. False 반환으로 닫기 차단."""
+        if self.window:
+            self.window.hide()
+        return False
 
     def _start_enforce_loop(self):
         """1초마다 숨김 상태 유지."""
@@ -280,13 +234,8 @@ class SlinkGUI:
         def on_start():
             self._init_tray()
             self._start_enforce_loop()
-            # Win32 서브클래싱으로 X 버튼 → 트레이 숨김
-            import time
-            time.sleep(0.5)  # 창 생성 완료 대기
-            try:
-                self._hook_close_button()
-            except Exception:
-                pass
+            # X 버튼 → 트레이 숨김
+            self.window.events.closing += self._on_closing
 
         # 아이콘 설정
         ico = get_resource_path("slink.ico")

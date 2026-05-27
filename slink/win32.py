@@ -155,10 +155,12 @@ def enum_taskbar_windows() -> list:
         owner = user32.GetWindow(hwnd, 4)
         if (not owner and not is_toolwindow) or is_appwindow:
             process_name = get_process_name(hwnd)
+            pid = get_window_pid(hwnd)
             results.append({
                 "hwnd": hwnd,
                 "title": title,
                 "process": process_name,
+                "pid": pid,
                 "ex_style": ex_style,
             })
         return True
