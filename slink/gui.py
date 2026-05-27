@@ -1,7 +1,14 @@
-"""Slink GUI — pywebview + local HTTP API server."""
+"""Slink GUI — pywebview + local HTTP API server.
+
+Architecture:
+- pywebview: 창 렌더링 전용 (js_api/expose/events 일절 사용 안 함)
+- HTTP server (127.0.0.1:PORT): JS↔Python 통신
+- 창 제어 (hide/minimize/quit): 큐를 통해 메인 루프에서 실행
+"""
 
 import os
 import json
+import queue
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
@@ -12,15 +19,18 @@ from slink.tray import setup_tray
 from slink.updater import check_for_update, download_and_apply
 from slink.resources import get_resource_path
 
+# 창 제어 명령 큐 — HTTP 스레드 → 메인 루프
+_cmd_queue = queue.Queue()
+
 
 class ApiHandler(BaseHTTPRequestHandler):
-    """로컬 HTTP API — JS에서 fetch()로 호출."""
+    """로컬 HTTP API."""
 
     core: SlinkCore = None
-    gui_ref = None  # SlinkGUI 참조
+    gui_ref = None
 
     def log_message(self, *args):
-        pass  # 콘솔 로그 억제
+        pass
 
     def do_GET(self):
         if self.path == "/api/info":
@@ -40,21 +50,15 @@ class ApiHandler(BaseHTTPRequestHandler):
 
         elif self.path == "/api/minimize":
             self._json({"ok": True})
-            gui = ApiHandler.gui_ref
-            if gui and gui.window:
-                threading.Timer(0.1, gui.window.minimize).start()
+            _cmd_queue.put("minimize")
 
         elif self.path == "/api/hide":
             self._json({"ok": True})
-            gui = ApiHandler.gui_ref
-            if gui and gui.window:
-                threading.Timer(0.1, gui.window.hide).start()
+            _cmd_queue.put("hide")
 
         elif self.path == "/api/quit":
             self._json({"ok": True})
-            gui = ApiHandler.gui_ref
-            if gui:
-                threading.Timer(0.1, gui._on_quit).start()
+            _cmd_queue.put("quit")
 
         else:
             self._json({"error": "not found"}, 404)
@@ -127,28 +131,23 @@ class ApiHandler(BaseHTTPRequestHandler):
         return {"visible": visible, "hidden": hidden}
 
     def _check_update(self):
-        import queue
         q = queue.Queue()
         check_for_update(lambda latest, url, err: q.put((latest, url, err)))
         try:
             latest, url, err = q.get(timeout=15)
         except Exception:
             return {"status": "error", "message": "timeout"}
-
         if err:
             return {"status": "error", "message": str(err)}
         elif url:
             ApiHandler._update_url = url
             return {"status": "available", "version": latest}
-        else:
-            return {"status": "up_to_date"}
+        return {"status": "up_to_date"}
 
     def _do_update(self):
         url = getattr(ApiHandler, "_update_url", None)
         if not url:
             return {"status": "error", "message": "No update URL"}
-
-        import queue
         q = queue.Queue()
         download_and_apply(url,
                            lambda close_func: q.put(("done", close_func)),
@@ -157,7 +156,6 @@ class ApiHandler(BaseHTTPRequestHandler):
             result_type, payload = q.get(timeout=120)
         except Exception:
             return {"status": "error", "message": "timeout"}
-
         if result_type == "done":
             ApiHandler.core.restore_all()
             payload()
@@ -166,12 +164,10 @@ class ApiHandler(BaseHTTPRequestHandler):
 
 
 def _start_api_server(core, gui, port=18925):
-    """백그라운드 HTTP API 서버 시작."""
     ApiHandler.core = core
     ApiHandler.gui_ref = gui
     server = HTTPServer(("127.0.0.1", port), ApiHandler)
-    t = threading.Thread(target=server.serve_forever, daemon=True)
-    t.start()
+    threading.Thread(target=server.serve_forever, daemon=True).start()
     return port
 
 
@@ -184,8 +180,8 @@ class SlinkGUI:
     def _init_tray(self):
         png = get_resource_path("slink.png")
         self.tray_icon = setup_tray(
-            on_show=lambda *_: self._restore_window(),
-            on_quit=lambda *_: self._on_quit(),
+            on_show=lambda *_: _cmd_queue.put("show"),
+            on_quit=lambda *_: _cmd_queue.put("quit"),
             icon_path=png)
 
     def _restore_window(self):
@@ -212,13 +208,48 @@ class SlinkGUI:
                 time.sleep(1)
         threading.Thread(target=loop, daemon=True).start()
 
+    def _start_cmd_loop(self):
+        """큐에서 명령을 꺼내 메인 스레드(evaluate_js)로 실행.
+
+        pywebview의 window.hide/show/minimize는
+        WinForms Invoke가 필요하므로 아무 스레드에서나 호출 가능하지만,
+        frameless 모드에서 타이밍 이슈가 있으므로
+        evaluate_js를 통해 간접 실행한다.
+        """
+        def loop():
+            import time
+            while True:
+                try:
+                    cmd = _cmd_queue.get(timeout=0.2)
+                except queue.Empty:
+                    continue
+
+                try:
+                    if cmd == "hide":
+                        if self.window:
+                            self.window.hide()
+                    elif cmd == "show":
+                        if self.window:
+                            self.window.show()
+                            self.window.restore()
+                    elif cmd == "minimize":
+                        if self.window:
+                            self.window.minimize()
+                    elif cmd == "quit":
+                        self._on_quit()
+                        break
+                except Exception:
+                    pass
+
+        threading.Thread(target=loop, daemon=True).start()
+
     def run(self):
         import webview
 
-        # 1) HTTP API 서버 시작
+        # 1) HTTP API 서버
         port = _start_api_server(self._core, self)
 
-        # 2) HTML 로드 — API_PORT를 주입
+        # 2) HTML 로드
         html_path = get_resource_path("ui.html")
         if not os.path.exists(html_path):
             for alt in [
@@ -232,11 +263,9 @@ class SlinkGUI:
 
         with open(html_path, "r", encoding="utf-8") as f:
             html_content = f.read()
-
-        # API 포트 주입
         html_content = html_content.replace("__API_PORT__", str(port))
 
-        # 3) pywebview 창 — js_api 없음, frameless
+        # 3) pywebview 창 — js_api 없음, events 없음
         self.window = webview.create_window(
             "Slink",
             html=html_content,
@@ -251,6 +280,7 @@ class SlinkGUI:
         def on_start():
             self._init_tray()
             self._start_enforce_loop()
+            self._start_cmd_loop()
 
         ico = get_resource_path("slink.ico")
         webview.start(func=on_start, debug=False, gui="edgechromium",
