@@ -1,7 +1,6 @@
-"""Slink GUI — CustomTkinter interface with lightweight scroll."""
+"""Slink GUI — Canvas-drawn list for zero resize lag."""
 
 import os
-import sys
 import tkinter as tk
 import webbrowser
 import customtkinter as ctk
@@ -18,74 +17,171 @@ ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
 
 F = "Malgun Gothic"
-BG       = "#fafaf8"
+BG       = "#f5f5f3"
 CARD     = "#ffffff"
 FG       = "#1a1a1a"
-FG2      = "#666666"
+FG2      = "#888888"
 FG3      = "#aaaaaa"
-BORDER   = "#ebebeb"
-HOVER    = "#f5f5f3"
-SELECT   = "#eeedeb"
+BORDER   = "#e4e4e2"
+HOVER    = "#f0efed"
+SELECT   = "#e8e7e5"
 ACCENT   = "#1a1a1a"
 ACCENT_H = "#333333"
-DANGER   = "#d45555"
+DANGER   = "#c94444"
 SUCCESS  = "#3d8c5c"
-DIVIDER  = "#f0f0ee"
+DIVIDER  = "#eeeeec"
+INDICATOR = "#1a1a1a"
 
-ROW_H = 28  # 행 높이 (기존 34 → 28)
+ROW_H = 32
 
 
-class _LightScrollFrame(ctk.CTkFrame):
-    """Canvas 기반 경량 스크롤 프레임.
+# ── Canvas 리스트 (위젯 0개, 즉각 리사이즈) ───
 
-    CTkScrollableFrame의 리사이즈 딜레이를 회피한다.
-    내부에 일반 CTkFrame(inner)을 두고, Canvas가 스크롤만 처리한다.
+class CanvasList(tk.Frame):
+    """순수 Canvas에 텍스트로 행을 그리는 리스트.
+
+    위젯을 전혀 사용하지 않으므로 리사이즈 시 relayout이 없다.
     """
 
-    def __init__(self, master, **kw):
-        super().__init__(master, fg_color=CARD, corner_radius=10,
-                         border_width=1, border_color=BORDER, **kw)
+    def __init__(self, master, on_selection_change=None, **kw):
+        super().__init__(master, bg=CARD, highlightthickness=0, bd=0, **kw)
+
+        self._rows = []       # [(hwnd, process, title), ...]
+        self._selected = set()  # {hwnd, ...}
+        self._hover_idx = -1
+        self._on_sel = on_selection_change
 
         self._canvas = tk.Canvas(self, bg=CARD, highlightthickness=0,
                                  bd=0, relief="flat")
-        self._canvas.pack(side="left", fill="both", expand=True)
+        self._canvas.pack(fill="both", expand=True)
 
-        self.inner = ctk.CTkFrame(self._canvas, fg_color=CARD)
-        self._window_id = self._canvas.create_window(
-            (0, 0), window=self.inner, anchor="nw")
+        self._canvas.bind("<Configure>", self._redraw)
+        self._canvas.bind("<Button-1>", self._on_click)
+        self._canvas.bind("<Motion>", self._on_motion)
+        self._canvas.bind("<Leave>", self._on_leave)
+        self._canvas.bind("<MouseWheel>", self._on_mousewheel)
 
-        self.inner.bind("<Configure>", self._on_inner_configure)
-        self._canvas.bind("<Configure>", self._on_canvas_configure)
-        self._canvas.bind("<Enter>", self._bind_wheel)
-        self._canvas.bind("<Leave>", self._unbind_wheel)
+    @property
+    def selected(self):
+        return set(self._selected)
 
-    def _on_inner_configure(self, _=None):
-        self._canvas.configure(scrollregion=self._canvas.bbox("all"))
+    def set_rows(self, rows):
+        """rows: list of (hwnd, process, title)"""
+        self._rows = list(rows)
+        self._selected.clear()
+        self._hover_idx = -1
+        self._redraw()
 
-    def _on_canvas_configure(self, event):
-        self._canvas.itemconfig(self._window_id, width=event.width)
+    def _idx_at_y(self, y):
+        # Canvas 스크롤 위치를 고려한 실제 y 계산
+        canvas_y = self._canvas.canvasy(y)
+        idx = int(canvas_y // ROW_H)
+        if 0 <= idx < len(self._rows):
+            return idx
+        return -1
 
-    def _bind_wheel(self, _=None):
-        self._canvas.bind_all("<MouseWheel>", self._on_mousewheel)
+    def _redraw(self, _=None):
+        c = self._canvas
+        c.delete("all")
+        w = c.winfo_width()
+        if w < 2:
+            w = 500  # 초기값
 
-    def _unbind_wheel(self, _=None):
-        self._canvas.unbind_all("<MouseWheel>")
+        total_h = max(len(self._rows) * ROW_H, 1)
+        c.configure(scrollregion=(0, 0, w, total_h))
+
+        proc_x = 14      # 프로세스 시작 x
+        title_x = 140     # 타이틀 시작 x
+
+        for i, (hwnd, proc, title) in enumerate(self._rows):
+            y0 = i * ROW_H
+            y1 = y0 + ROW_H
+            ymid = y0 + ROW_H // 2
+
+            # 배경
+            if hwnd in self._selected:
+                bg = SELECT
+            elif i == self._hover_idx:
+                bg = HOVER
+            else:
+                bg = CARD
+
+            c.create_rectangle(0, y0, w, y1, fill=bg, outline="", tags=f"row{i}")
+
+            # 선택 인디케이터
+            if hwnd in self._selected:
+                c.create_rectangle(5, y0 + 8, 8, y1 - 8,
+                                   fill=INDICATOR, outline="")
+
+            # 프로세스명 (흐린 색, 작은 텍스트)
+            display_proc = proc.replace(".exe", "")
+            c.create_text(proc_x, ymid, text=display_proc,
+                          anchor="w", fill=FG2,
+                          font=(F, 9))
+
+            # 타이틀 (진한 색) — 너비 제한 + 말줄임
+            max_title_w = w - title_x - 14
+            display_title = self._truncate(title, max_title_w, (F, 10))
+            c.create_text(title_x, ymid, text=display_title,
+                          anchor="w", fill=FG,
+                          font=(F, 10))
+
+            # 구분선
+            if i < len(self._rows) - 1:
+                c.create_line(14, y1, w - 14, y1, fill=DIVIDER)
+
+    def _truncate(self, text, max_px, font_tuple):
+        """텍스트를 max_px에 맞게 말줄임."""
+        import tkinter.font as tkfont
+        try:
+            f = tkfont.Font(family=font_tuple[0], size=font_tuple[1])
+            if f.measure(text) <= max_px:
+                return text
+            while len(text) > 1 and f.measure(text + "…") > max_px:
+                text = text[:-1]
+            return text + "…"
+        except Exception:
+            # 폰트 측정 실패 시 문자 수로 대충 자름
+            approx = max(int(max_px / 8), 10)
+            if len(text) > approx:
+                return text[:approx - 1] + "…"
+            return text
+
+    def _on_click(self, event):
+        idx = self._idx_at_y(event.y)
+        if idx < 0:
+            return
+        hwnd = self._rows[idx][0]
+        if hwnd in self._selected:
+            self._selected.discard(hwnd)
+        else:
+            self._selected.add(hwnd)
+        self._redraw()
+        if self._on_sel:
+            self._on_sel()
+
+    def _on_motion(self, event):
+        idx = self._idx_at_y(event.y)
+        if idx != self._hover_idx:
+            self._hover_idx = idx
+            self._redraw()
+
+    def _on_leave(self, _=None):
+        if self._hover_idx >= 0:
+            self._hover_idx = -1
+            self._redraw()
 
     def _on_mousewheel(self, event):
         self._canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
-    def clear(self):
-        for w in self.inner.winfo_children():
-            w.destroy()
 
+# ── 메인 GUI ─────────────────────────────────
 
 class SlinkGUI:
     def __init__(self, core: SlinkCore):
         self.core = core
         self.tray_icon = None
         self._latest_download_url = None
-        self._selected_visible = set()
-        self._selected_hidden = set()
 
         self._init_window()
         self._build_ui()
@@ -96,8 +192,8 @@ class SlinkGUI:
     def _init_window(self):
         self.root = ctk.CTk()
         self.root.title("Slink")
-        self.root.geometry("580x520")
-        self.root.minsize(440, 380)
+        self.root.geometry("560x500")
+        self.root.minsize(420, 360)
         self.root.configure(fg_color=BG)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
         ico = get_resource_path("slink.ico")
@@ -116,19 +212,19 @@ class SlinkGUI:
 
     def _build_ui(self):
         wrapper = ctk.CTkFrame(self.root, fg_color=BG)
-        wrapper.pack(fill="both", expand=True, padx=18, pady=(14, 14))
+        wrapper.pack(fill="both", expand=True, padx=20, pady=(16, 16))
 
         # ── 헤더 ──
         header = ctk.CTkFrame(wrapper, fg_color=BG)
-        header.pack(fill="x", pady=(0, 10))
+        header.pack(fill="x", pady=(0, 12))
 
         left = ctk.CTkFrame(header, fg_color=BG)
         left.pack(side="left")
 
-        ctk.CTkLabel(left, text="Slink", font=(F, 20, "bold"),
+        ctk.CTkLabel(left, text="Slink", font=(F, 18, "bold"),
                      text_color=FG).pack(side="left")
-        ctk.CTkLabel(left, text=APP_VERSION, font=(F, 9),
-                     text_color=FG3).pack(side="left", padx=(8, 0), pady=(7, 0))
+        ctk.CTkLabel(left, text=f"v{APP_VERSION}", font=(F, 9),
+                     text_color=FG3).pack(side="left", padx=(8, 0), pady=(5, 0))
 
         right = ctk.CTkFrame(header, fg_color=BG)
         right.pack(side="right")
@@ -137,28 +233,26 @@ class SlinkGUI:
         self._active_tab = None
 
         for name in ["Windows", "Settings"]:
-            btn = ctk.CTkButton(right, text=name, width=64, height=26,
-                                 font=(F, 10), corner_radius=13,
+            btn = ctk.CTkButton(right, text=name, width=68, height=28,
+                                 font=(F, 10), corner_radius=14,
                                  fg_color="transparent", text_color=FG3,
                                  hover_color=HOVER,
                                  command=lambda n=name: self._switch_tab(n))
-            btn.pack(side="left", padx=(0, 3))
+            btn.pack(side="left", padx=(0, 2))
             self._tabs[name] = btn
 
         ctk.CTkFrame(right, width=1, height=18,
-                      fg_color=BORDER).pack(side="left", padx=(6, 6))
+                      fg_color=BORDER).pack(side="left", padx=(8, 8))
 
-        ctk.CTkButton(right, text="Quit", width=42, height=26,
-                       font=(F, 10), corner_radius=13,
+        ctk.CTkButton(right, text="Quit", width=44, height=28,
+                       font=(F, 10), corner_radius=14,
                        fg_color="transparent", text_color=DANGER,
                        hover_color="#fdf0f0",
                        command=self._on_quit).pack(side="left")
 
-        ctk.CTkFrame(wrapper, height=1, fg_color=BORDER).pack(fill="x")
-
         # ── 페이지 컨테이너 ──
         self._page_container = ctk.CTkFrame(wrapper, fg_color=BG)
-        self._page_container.pack(fill="both", expand=True, pady=(10, 0))
+        self._page_container.pack(fill="both", expand=True)
 
         self._pages = {}
 
@@ -190,22 +284,23 @@ class SlinkGUI:
     # ── Windows 페이지 ───────────────────────────
 
     def _build_windows_page(self, parent):
+        # 액션 바
         bar = ctk.CTkFrame(parent, fg_color=BG)
-        bar.pack(fill="x", pady=(0, 8))
+        bar.pack(fill="x", pady=(0, 10))
 
-        ctk.CTkButton(bar, text="↓  Hide", width=80, height=28,
+        ctk.CTkButton(bar, text="↓  Hide", width=80, height=30,
                        font=(F, 10, "bold"), corner_radius=6,
                        fg_color=ACCENT, hover_color=ACCENT_H,
                        command=self._on_hide).pack(side="left", padx=(0, 4))
 
-        ctk.CTkButton(bar, text="↑  Show", width=80, height=28,
+        ctk.CTkButton(bar, text="↑  Show", width=80, height=30,
                        font=(F, 10), corner_radius=6,
                        fg_color="transparent", text_color=FG,
                        border_width=1, border_color=BORDER,
                        hover_color=HOVER,
                        command=self._on_show).pack(side="left", padx=(0, 4))
 
-        ctk.CTkButton(bar, text="↻", width=28, height=28,
+        ctk.CTkButton(bar, text="↻", width=30, height=30,
                        font=(F, 12), corner_radius=6,
                        fg_color="transparent", text_color=FG3,
                        hover_color=HOVER,
@@ -215,19 +310,37 @@ class SlinkGUI:
                                           font=(F, 9), text_color=FG3)
         self.status_label.pack(side="right")
 
-        # ── Visible 섹션 ──
-        ctk.CTkLabel(parent, text="VISIBLE", font=(F, 9, "bold"),
-                     text_color=FG3).pack(anchor="w", pady=(0, 3))
+        # ── Visible ──
+        vis_header = ctk.CTkFrame(parent, fg_color=BG)
+        vis_header.pack(fill="x", pady=(0, 4))
+        ctk.CTkLabel(vis_header, text="VISIBLE", font=(F, 8),
+                     text_color=FG3).pack(side="left")
+        self.vis_count = ctk.CTkLabel(vis_header, text="0", font=(F, 8),
+                                       text_color=FG3)
+        self.vis_count.pack(side="right")
 
-        self.visible_scroll = _LightScrollFrame(parent)
-        self.visible_scroll.pack(fill="both", expand=True, pady=(0, 8))
+        vis_card = ctk.CTkFrame(parent, fg_color=CARD, corner_radius=8,
+                                 border_width=1, border_color=BORDER)
+        vis_card.pack(fill="both", expand=True, pady=(0, 10))
 
-        # ── Hidden 섹션 ──
-        ctk.CTkLabel(parent, text="HIDDEN", font=(F, 9, "bold"),
-                     text_color=FG3).pack(anchor="w", pady=(0, 3))
+        self.visible_list = CanvasList(vis_card)
+        self.visible_list.pack(fill="both", expand=True, padx=1, pady=1)
 
-        self.hidden_scroll = _LightScrollFrame(parent)
-        self.hidden_scroll.pack(fill="both", expand=True)
+        # ── Hidden ──
+        hid_header = ctk.CTkFrame(parent, fg_color=BG)
+        hid_header.pack(fill="x", pady=(0, 4))
+        ctk.CTkLabel(hid_header, text="HIDDEN", font=(F, 8),
+                     text_color=FG3).pack(side="left")
+        self.hid_count = ctk.CTkLabel(hid_header, text="0", font=(F, 8),
+                                       text_color=FG3)
+        self.hid_count.pack(side="right")
+
+        hid_card = ctk.CTkFrame(parent, fg_color=CARD, corner_radius=8,
+                                 border_width=1, border_color=BORDER)
+        hid_card.pack(fill="both", expand=True)
+
+        self.hidden_list = CanvasList(hid_card)
+        self.hidden_list.pack(fill="both", expand=True, padx=1, pady=1)
 
     # ── Settings 페이지 ──────────────────────────
 
@@ -265,7 +378,7 @@ class SlinkGUI:
 
         links = self._card(parent, top=8)
         self._card_title(links, "Links")
-        ctk.CTkButton(links, text="View Releases →", width=106, height=24,
+        ctk.CTkButton(links, text="GitHub Releases →", width=120, height=24,
                        font=(F, 10), corner_radius=6,
                        fg_color="transparent", text_color=FG2,
                        hover_color=HOVER,
@@ -282,7 +395,7 @@ class SlinkGUI:
 
     def _card_title(self, parent, text):
         ctk.CTkLabel(parent, text=text, font=(F, 11, "bold"),
-                     text_color=FG).pack(anchor="w", pady=(0, 5))
+                     text_color=FG).pack(anchor="w", pady=(0, 6))
 
     def _info_row(self, parent, label, value):
         row = ctk.CTkFrame(parent, fg_color=CARD)
@@ -292,61 +405,9 @@ class SlinkGUI:
         ctk.CTkLabel(row, text=value, font=(F, 10),
                      text_color=FG).pack(side="left")
 
-    # ── 리스트 아이템 ────────────────────────────
-
-    def _make_row(self, parent, hwnd, process, title, sel_set, is_last=False):
-        row = ctk.CTkFrame(parent, fg_color=CARD, height=ROW_H, corner_radius=0)
-        row.pack(fill="x", padx=4, pady=0)
-        row.pack_propagate(False)
-
-        indicator = ctk.CTkFrame(row, width=3, height=16,
-                                  fg_color=CARD, corner_radius=2)
-        indicator.pack(side="left", padx=(3, 6), pady=6)
-
-        p = ctk.CTkLabel(row, text=process, font=(F, 10),
-                          text_color=FG2, width=110, anchor="w")
-        p.pack(side="left", padx=(0, 4))
-
-        t = ctk.CTkLabel(row, text=title, font=(F, 10),
-                          text_color=FG, anchor="w")
-        t.pack(side="left", fill="x", expand=True, padx=(0, 6))
-
-        if not is_last:
-            div = ctk.CTkFrame(parent, height=1, fg_color=DIVIDER)
-            div.pack(fill="x", padx=10)
-
-        def select(e=None):
-            if hwnd in sel_set:
-                sel_set.discard(hwnd)
-                row.configure(fg_color=CARD)
-                indicator.configure(fg_color=CARD)
-            else:
-                sel_set.add(hwnd)
-                row.configure(fg_color=SELECT)
-                indicator.configure(fg_color=ACCENT)
-
-        def enter(e=None):
-            if hwnd not in sel_set:
-                row.configure(fg_color=HOVER)
-
-        def leave(e=None):
-            if hwnd not in sel_set:
-                row.configure(fg_color=CARD)
-
-        for w in [row, p, t, indicator]:
-            w.bind("<Button-1>", select)
-            w.bind("<Enter>", enter)
-            w.bind("<Leave>", leave)
-
     # ── 이벤트 ───────────────────────────────────
 
     def _refresh_list(self):
-        self._selected_visible.clear()
-        self._selected_hidden.clear()
-
-        self.visible_scroll.clear()
-        self.hidden_scroll.clear()
-
         windows = enum_taskbar_windows()
         own = self.root.winfo_id()
         visible = []
@@ -358,28 +419,25 @@ class SlinkGUI:
                 continue
             visible.append(w)
 
-        for i, w in enumerate(visible):
-            self._make_row(self.visible_scroll.inner, w["hwnd"],
-                           w["process"], w["title"],
-                           self._selected_visible,
-                           is_last=(i == len(visible) - 1))
+        vis_rows = [(w["hwnd"], w["process"], w["title"]) for w in visible]
+        self.visible_list.set_rows(vis_rows)
 
         hidden_list = list(self.core.hidden.items())
-        for i, (hwnd, info) in enumerate(hidden_list):
-            self._make_row(self.hidden_scroll.inner, hwnd,
-                           info.process, info.title,
-                           self._selected_hidden,
-                           is_last=(i == len(hidden_list) - 1))
+        hid_rows = [(hwnd, info.process, info.title) for hwnd, info in hidden_list]
+        self.hidden_list.set_rows(hid_rows)
 
+        self.vis_count.configure(text=str(len(vis_rows)))
+        self.hid_count.configure(text=str(len(hid_rows)))
         self.status_label.configure(
-            text=f"{len(visible)} visible  ·  {len(hidden_list)} hidden")
+            text=f"{len(vis_rows)} visible  ·  {len(hid_rows)} hidden")
 
     def _on_hide(self):
-        if not self._selected_visible:
+        sel = self.visible_list.selected
+        if not sel:
             self.status_label.configure(text="Select a window to hide")
             return
         c = 0
-        for hwnd in list(self._selected_visible):
+        for hwnd in sel:
             w = [x for x in enum_taskbar_windows() if x["hwnd"] == hwnd]
             if w:
                 if self.core.hide_from_taskbar(hwnd, w[0]["title"], w[0]["process"]):
@@ -388,11 +446,12 @@ class SlinkGUI:
         self._refresh_list()
 
     def _on_show(self):
-        if not self._selected_hidden:
+        sel = self.hidden_list.selected
+        if not sel:
             self.status_label.configure(text="Select a window to restore")
             return
         c = 0
-        for hwnd in list(self._selected_hidden):
+        for hwnd in sel:
             if self.core.show_on_taskbar(hwnd):
                 c += 1
         self.status_label.configure(text=f"Restored {c} window(s)")
@@ -427,7 +486,7 @@ class SlinkGUI:
 
         def cb(latest, url, err):
             if err:
-                self.root.after(0, lambda: self._update_result(f"Failed", False))
+                self.root.after(0, lambda: self._update_result("Failed", False))
             elif url:
                 self.root.after(0, lambda: self._update_result(
                     f"v{latest} available", True, url))
