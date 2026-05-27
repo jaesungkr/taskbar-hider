@@ -1,4 +1,4 @@
-"""Slink GUI — CustomTkinter modern interface."""
+"""Slink GUI — Award-level CustomTkinter interface."""
 
 import os
 import sys
@@ -12,21 +12,24 @@ from slink.tray import setup_tray
 from slink.updater import check_for_update, download_and_apply
 from slink.resources import get_resource_path
 
-# ── 테마 설정 ─────────────────────────────────
+# ── 테마 ──────────────────────────────────────
 ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
 
-FONT_FAMILY = "Malgun Gothic"
-BG = "#fafaf8"
-CARD_BG = "#ffffff"
-FG = "#1a1a1a"
-FG_SEC = "#777777"
-FG_MUTED = "#aaaaaa"
-BORDER = "#e8e7e5"
-ACCENT = "#2d2d2d"
-DANGER = "#c75050"
-SUCCESS = "#4a9e6a"
-SUCCESS = "#4a9e6a"
+F = "Malgun Gothic"
+BG       = "#fafaf8"
+CARD     = "#ffffff"
+FG       = "#1a1a1a"
+FG2      = "#666666"
+FG3      = "#aaaaaa"
+BORDER   = "#ebebeb"
+HOVER    = "#f5f5f3"
+SELECT   = "#eeedeb"
+ACCENT   = "#1a1a1a"
+ACCENT_H = "#333333"
+DANGER   = "#d45555"
+SUCCESS  = "#3d8c5c"
+DIVIDER  = "#f0f0ee"
 
 
 class SlinkGUI:
@@ -34,6 +37,8 @@ class SlinkGUI:
         self.core = core
         self.tray_icon = None
         self._latest_download_url = None
+        self._selected_visible = set()
+        self._selected_hidden = set()
 
         self._init_window()
         self._build_ui()
@@ -41,331 +46,335 @@ class SlinkGUI:
         self._start_watcher()
         self._init_tray()
 
-    # ── 초기화 ───────────────────────────────────
-
     def _init_window(self):
         self.root = ctk.CTk()
         self.root.title("Slink")
-        self.root.geometry("680x620")
-        self.root.minsize(520, 460)
+        self.root.geometry("620x580")
+        self.root.minsize(480, 420)
         self.root.configure(fg_color=BG)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
-
-        ico_path = get_resource_path("slink.ico")
-        if os.path.exists(ico_path):
-            self.root.iconbitmap(ico_path)
-            self.root.after(200, lambda: self.root.iconbitmap(ico_path))
+        ico = get_resource_path("slink.ico")
+        if os.path.exists(ico):
+            self.root.iconbitmap(ico)
+            self.root.after(200, lambda: self.root.iconbitmap(ico))
 
     def _init_tray(self):
-        png_path = get_resource_path("slink.png")
+        png = get_resource_path("slink.png")
         self.tray_icon = setup_tray(
             on_show=lambda *_: self.root.after(0, self._restore_window),
             on_quit=lambda *_: self.root.after(0, self._on_quit),
-            icon_path=png_path,
-        )
+            icon_path=png)
 
-    # ── UI 빌드 ──────────────────────────────────
+    # ── 레이아웃 ─────────────────────────────────
 
     def _build_ui(self):
+        # 사이드바 + 콘텐츠 구조
+        wrapper = ctk.CTkFrame(self.root, fg_color=BG)
+        wrapper.pack(fill="both", expand=True, padx=28, pady=(20, 20))
+
         # ── 헤더 ──
-        header = ctk.CTkFrame(self.root, fg_color=BG)
-        header.pack(fill="x", padx=24, pady=(20, 0))
+        header = ctk.CTkFrame(wrapper, fg_color=BG)
+        header.pack(fill="x", pady=(0, 16))
 
-        title_frame = ctk.CTkFrame(header, fg_color=BG)
-        title_frame.pack(side="left")
+        left = ctk.CTkFrame(header, fg_color=BG)
+        left.pack(side="left")
 
-        ctk.CTkLabel(title_frame, text=APP_NAME,
-                     font=(FONT_FAMILY, 22, "bold"),
+        ctk.CTkLabel(left, text="Slink", font=(F, 24, "bold"),
                      text_color=FG).pack(side="left")
-        ctk.CTkLabel(title_frame, text=f"v{APP_VERSION}",
-                     font=(FONT_FAMILY, 11),
-                     text_color=FG_MUTED).pack(side="left", padx=(8, 0), pady=(8, 0))
+        ctk.CTkLabel(left, text=APP_VERSION, font=(F, 10),
+                     text_color=FG3).pack(side="left", padx=(10, 0), pady=(10, 0))
 
-        ctk.CTkButton(header, text="Quit", width=60, height=28,
-                       font=(FONT_FAMILY, 11),
+        # 탭 + Quit을 우측에
+        right = ctk.CTkFrame(header, fg_color=BG)
+        right.pack(side="right")
+
+        self._tabs = {}
+        self._active_tab = None
+
+        for name in ["Windows", "Settings"]:
+            btn = ctk.CTkButton(right, text=name, width=70, height=28,
+                                 font=(F, 11), corner_radius=14,
+                                 fg_color="transparent", text_color=FG3,
+                                 hover_color=HOVER,
+                                 command=lambda n=name: self._switch_tab(n))
+            btn.pack(side="left", padx=(0, 4))
+            self._tabs[name] = btn
+
+        ctk.CTkFrame(right, width=1, height=20,
+                      fg_color=BORDER).pack(side="left", padx=(8, 8))
+
+        ctk.CTkButton(right, text="Quit", width=48, height=28,
+                       font=(F, 10), corner_radius=14,
                        fg_color="transparent", text_color=DANGER,
-                       hover_color="#fce8e8",
-                       command=self._on_quit).pack(side="right")
+                       hover_color="#fdf0f0",
+                       command=self._on_quit).pack(side="left")
 
-        # ── 탭 ──
-        self.tabview = ctk.CTkTabview(self.root, fg_color=BG,
-                                       segmented_button_fg_color=BORDER,
-                                       segmented_button_selected_color=ACCENT,
-                                       segmented_button_selected_hover_color="#444444",
-                                       segmented_button_unselected_color=BORDER,
-                                       segmented_button_unselected_hover_color="#d5d4d2",
-                                       text_color="white",
-                                       corner_radius=8)
-        self.tabview.pack(fill="both", expand=True, padx=24, pady=(8, 16))
+        # 구분선
+        ctk.CTkFrame(wrapper, height=1, fg_color=BORDER).pack(fill="x")
 
-        tab_windows = self.tabview.add("Windows")
-        tab_settings = self.tabview.add("Settings")
+        # ── 페이지 컨테이너 ──
+        self._page_container = ctk.CTkFrame(wrapper, fg_color=BG)
+        self._page_container.pack(fill="both", expand=True, pady=(16, 0))
 
-        self._build_windows_tab(tab_windows)
-        self._build_settings_tab(tab_settings)
+        self._pages = {}
 
-    # ── Windows 탭 ───────────────────────────────
+        win_page = ctk.CTkFrame(self._page_container, fg_color=BG)
+        self._pages["Windows"] = win_page
+        self._build_windows_page(win_page)
 
-    def _build_windows_tab(self, parent):
+        set_page = ctk.CTkFrame(self._page_container, fg_color=BG)
+        self._pages["Settings"] = set_page
+        self._build_settings_page(set_page)
+
+        self._switch_tab("Windows")
+
+    def _switch_tab(self, name):
+        if self._active_tab == name:
+            return
+        for page in self._pages.values():
+            page.pack_forget()
+        self._pages[name].pack(fill="both", expand=True)
+        for n, btn in self._tabs.items():
+            if n == name:
+                btn.configure(fg_color=ACCENT, text_color="#ffffff",
+                              hover_color=ACCENT_H)
+            else:
+                btn.configure(fg_color="transparent", text_color=FG3,
+                              hover_color=HOVER)
+        self._active_tab = name
+
+    # ── Windows 페이지 ───────────────────────────
+
+    def _build_windows_page(self, parent):
         # 액션 바
-        actions = ctk.CTkFrame(parent, fg_color="transparent")
-        actions.pack(fill="x", pady=(4, 8))
+        bar = ctk.CTkFrame(parent, fg_color=BG)
+        bar.pack(fill="x", pady=(0, 12))
 
-        ctk.CTkButton(actions, text="Hide", width=90, height=32,
-                       font=(FONT_FAMILY, 12, "bold"),
-                       fg_color=ACCENT, hover_color="#444444",
-                       corner_radius=6,
+        ctk.CTkButton(bar, text="↓  Hide", width=88, height=30,
+                       font=(F, 11, "bold"), corner_radius=6,
+                       fg_color=ACCENT, hover_color=ACCENT_H,
                        command=self._on_hide).pack(side="left", padx=(0, 6))
 
-        ctk.CTkButton(actions, text="Show", width=90, height=32,
-                       font=(FONT_FAMILY, 12),
+        ctk.CTkButton(bar, text="↑  Show", width=88, height=30,
+                       font=(F, 11), corner_radius=6,
                        fg_color="transparent", text_color=FG,
                        border_width=1, border_color=BORDER,
-                       hover_color="#f0efed",
-                       corner_radius=6,
+                       hover_color=HOVER,
                        command=self._on_show).pack(side="left", padx=(0, 6))
 
-        ctk.CTkButton(actions, text="Refresh", width=80, height=32,
-                       font=(FONT_FAMILY, 11),
-                       fg_color="transparent", text_color=FG_SEC,
-                       hover_color="#f0efed",
-                       corner_radius=6,
+        ctk.CTkButton(bar, text="↻", width=32, height=30,
+                       font=(F, 13), corner_radius=6,
+                       fg_color="transparent", text_color=FG3,
+                       hover_color=HOVER,
                        command=self._refresh_list).pack(side="left")
 
-        # ── Visible 카드 ──
-        ctk.CTkLabel(parent, text="VISIBLE", font=(FONT_FAMILY, 10),
-                     text_color=FG_MUTED).pack(anchor="w", pady=(4, 2))
+        self.status_label = ctk.CTkLabel(bar, text="",
+                                          font=(F, 10), text_color=FG3)
+        self.status_label.pack(side="right")
 
-        visible_card = ctk.CTkFrame(parent, fg_color=CARD_BG,
-                                     corner_radius=8, border_width=1,
-                                     border_color=BORDER)
-        visible_card.pack(fill="both", expand=True, pady=(0, 8))
+        # ── Visible 섹션 ──
+        ctk.CTkLabel(parent, text="VISIBLE", font=(F, 9, "bold"),
+                     text_color=FG3).pack(anchor="w", pady=(0, 4))
+
+        self.visible_card = ctk.CTkFrame(parent, fg_color=CARD,
+                                          corner_radius=10,
+                                          border_width=1, border_color=BORDER)
+        self.visible_card.pack(fill="both", expand=True, pady=(0, 10))
 
         self.visible_scroll = ctk.CTkScrollableFrame(
-            visible_card, fg_color=CARD_BG, corner_radius=8)
-        self.visible_scroll.pack(fill="both", expand=True, padx=2, pady=2)
+            self.visible_card, fg_color=CARD, corner_radius=10,
+            scrollbar_button_color=BORDER,
+            scrollbar_button_hover_color="#d0d0d0")
+        self.visible_scroll.pack(fill="both", expand=True, padx=1, pady=1)
 
-        # ── Hidden 카드 ──
-        ctk.CTkLabel(parent, text="HIDDEN", font=(FONT_FAMILY, 10),
-                     text_color=FG_MUTED).pack(anchor="w", pady=(0, 2))
+        # ── Hidden 섹션 ──
+        ctk.CTkLabel(parent, text="HIDDEN", font=(F, 9, "bold"),
+                     text_color=FG3).pack(anchor="w", pady=(0, 4))
 
-        hidden_card = ctk.CTkFrame(parent, fg_color=CARD_BG,
-                                    corner_radius=8, border_width=1,
-                                    border_color=BORDER)
-        hidden_card.pack(fill="both", expand=True, pady=(0, 4))
+        self.hidden_card = ctk.CTkFrame(parent, fg_color=CARD,
+                                         corner_radius=10,
+                                         border_width=1, border_color=BORDER)
+        self.hidden_card.pack(fill="both", expand=True)
 
         self.hidden_scroll = ctk.CTkScrollableFrame(
-            hidden_card, fg_color=CARD_BG, corner_radius=8)
-        self.hidden_scroll.pack(fill="both", expand=True, padx=2, pady=2)
+            self.hidden_card, fg_color=CARD, corner_radius=10,
+            scrollbar_button_color=BORDER,
+            scrollbar_button_hover_color="#d0d0d0")
+        self.hidden_scroll.pack(fill="both", expand=True, padx=1, pady=1)
 
-        # 상태바
-        self.status_label = ctk.CTkLabel(parent, text="Ready",
-                                          font=(FONT_FAMILY, 10),
-                                          text_color=FG_MUTED)
-        self.status_label.pack(anchor="w", pady=(4, 0))
+    # ── Settings 페이지 ──────────────────────────
 
-        # 선택 추적
-        self._visible_items = {}
-        self._hidden_items = {}
-        self._selected_visible = set()
-        self._selected_hidden = set()
+    def _build_settings_page(self, parent):
+        # About
+        about = self._card(parent)
+        self._card_title(about, "About")
+        for k, v in [("App", APP_NAME), ("Version", f"v{APP_VERSION}"),
+                      ("Author", APP_AUTHOR), ("License", "MIT")]:
+            self._info_row(about, k, v)
 
-    # ── Settings 탭 ──────────────────────────────
+        # Update
+        update = self._card(parent, top=10)
+        self._card_title(update, "Update")
 
-    def _build_settings_tab(self, parent):
-        container = ctk.CTkFrame(parent, fg_color="transparent")
-        container.pack(fill="both", expand=True, pady=(4, 0))
+        row = ctk.CTkFrame(update, fg_color=CARD)
+        row.pack(fill="x", pady=(0, 2))
 
-        # About 카드
-        about_card = ctk.CTkFrame(container, fg_color=CARD_BG,
-                                   corner_radius=8, border_width=1,
-                                   border_color=BORDER)
-        about_card.pack(fill="x", pady=(0, 12))
-
-        about_inner = ctk.CTkFrame(about_card, fg_color=CARD_BG)
-        about_inner.pack(fill="x", padx=16, pady=14)
-
-        ctk.CTkLabel(about_inner, text="About",
-                     font=(FONT_FAMILY, 11, "bold"),
-                     text_color=FG).pack(anchor="w", pady=(0, 8))
-
-        for label, value in [("App", APP_NAME), ("Version", f"v{APP_VERSION}"),
-                              ("Author", APP_AUTHOR), ("License", "MIT")]:
-            row = ctk.CTkFrame(about_inner, fg_color=CARD_BG)
-            row.pack(fill="x", pady=1)
-            ctk.CTkLabel(row, text=label, font=(FONT_FAMILY, 11),
-                         text_color=FG_SEC, width=80,
-                         anchor="w").pack(side="left")
-            ctk.CTkLabel(row, text=value, font=(FONT_FAMILY, 11),
-                         text_color=FG).pack(side="left")
-
-        # Update 카드
-        update_card = ctk.CTkFrame(container, fg_color=CARD_BG,
-                                    corner_radius=8, border_width=1,
-                                    border_color=BORDER)
-        update_card.pack(fill="x", pady=(0, 12))
-
-        update_inner = ctk.CTkFrame(update_card, fg_color=CARD_BG)
-        update_inner.pack(fill="x", padx=16, pady=14)
-
-        ctk.CTkLabel(update_inner, text="Update",
-                     font=(FONT_FAMILY, 11, "bold"),
-                     text_color=FG).pack(anchor="w", pady=(0, 8))
-
-        update_row = ctk.CTkFrame(update_inner, fg_color=CARD_BG)
-        update_row.pack(fill="x")
-
-        self.btn_check_update = ctk.CTkButton(
-            update_row, text="Check for Updates",
-            width=140, height=30,
-            font=(FONT_FAMILY, 11),
+        self.btn_check = ctk.CTkButton(
+            row, text="Check for Updates", width=130, height=28,
+            font=(F, 10), corner_radius=6,
             fg_color="transparent", text_color=FG,
             border_width=1, border_color=BORDER,
-            hover_color="#f0efed", corner_radius=6,
+            hover_color=HOVER,
             command=self._on_check_update)
-        self.btn_check_update.pack(side="left", padx=(0, 8))
+        self.btn_check.pack(side="left", padx=(0, 6))
 
-        self.btn_do_update = ctk.CTkButton(
-            update_row, text="Update Now",
-            width=100, height=30,
-            font=(FONT_FAMILY, 11, "bold"),
-            fg_color=ACCENT, hover_color="#444444",
-            corner_radius=6,
+        self.btn_update = ctk.CTkButton(
+            row, text="Update Now", width=90, height=28,
+            font=(F, 10, "bold"), corner_radius=6,
+            fg_color=ACCENT, hover_color=ACCENT_H,
             command=self._on_do_update)
 
-        self.update_status_label = ctk.CTkLabel(
-            update_row, text="",
-            font=(FONT_FAMILY, 11), text_color=FG_MUTED)
-        self.update_status_label.pack(side="left", padx=(4, 0))
+        self.lbl_update = ctk.CTkLabel(
+            row, text="", font=(F, 10), text_color=FG3)
+        self.lbl_update.pack(side="left", padx=(4, 0))
 
-        # Links 카드
-        links_card = ctk.CTkFrame(container, fg_color=CARD_BG,
-                                   corner_radius=8, border_width=1,
-                                   border_color=BORDER)
-        links_card.pack(fill="x")
-
-        links_inner = ctk.CTkFrame(links_card, fg_color=CARD_BG)
-        links_inner.pack(fill="x", padx=16, pady=14)
-
-        ctk.CTkLabel(links_inner, text="Links",
-                     font=(FONT_FAMILY, 11, "bold"),
-                     text_color=FG).pack(anchor="w", pady=(0, 8))
-
-        ctk.CTkButton(links_inner, text="Releases",
-                       width=80, height=28,
-                       font=(FONT_FAMILY, 11),
-                       fg_color="transparent", text_color=FG_SEC,
-                       hover_color="#f0efed", corner_radius=6,
+        # Links
+        links = self._card(parent, top=10)
+        self._card_title(links, "Links")
+        ctk.CTkButton(links, text="View Releases →", width=110, height=26,
+                       font=(F, 10), corner_radius=6,
+                       fg_color="transparent", text_color=FG2,
+                       hover_color=HOVER,
                        command=lambda: webbrowser.open(
                            f"{APP_GITHUB}/releases/latest")).pack(anchor="w")
 
-    # ── 윈도우 목록 아이템 ────────────────────────
+    def _card(self, parent, top=0):
+        card = ctk.CTkFrame(parent, fg_color=CARD, corner_radius=10,
+                             border_width=1, border_color=BORDER)
+        card.pack(fill="x", pady=(top, 0))
+        inner = ctk.CTkFrame(card, fg_color=CARD)
+        inner.pack(fill="x", padx=18, pady=14)
+        return inner
 
-    def _create_window_row(self, parent, hwnd, process, title, selected_set):
-        """클릭 가능한 윈도우 행을 생성한다."""
-        row = ctk.CTkFrame(parent, fg_color=CARD_BG, height=36,
-                            corner_radius=4)
-        row.pack(fill="x", padx=4, pady=1)
+    def _card_title(self, parent, text):
+        ctk.CTkLabel(parent, text=text, font=(F, 12, "bold"),
+                     text_color=FG).pack(anchor="w", pady=(0, 8))
+
+    def _info_row(self, parent, label, value):
+        row = ctk.CTkFrame(parent, fg_color=CARD)
+        row.pack(fill="x", pady=1)
+        ctk.CTkLabel(row, text=label, font=(F, 10),
+                     text_color=FG3, width=70, anchor="w").pack(side="left")
+        ctk.CTkLabel(row, text=value, font=(F, 10),
+                     text_color=FG).pack(side="left")
+
+    # ── 리스트 아이템 ────────────────────────────
+
+    def _make_row(self, parent, hwnd, process, title, sel_set, is_last=False):
+        row = ctk.CTkFrame(parent, fg_color=CARD, height=34, corner_radius=0)
+        row.pack(fill="x", padx=6, pady=0)
         row.pack_propagate(False)
 
-        proc_label = ctk.CTkLabel(row, text=process,
-                                   font=(FONT_FAMILY, 10),
-                                   text_color=FG_SEC, width=130, anchor="w")
-        proc_label.pack(side="left", padx=(8, 4))
+        # 선택 인디케이터
+        indicator = ctk.CTkFrame(row, width=3, height=20,
+                                  fg_color=CARD, corner_radius=2)
+        indicator.pack(side="left", padx=(4, 8), pady=7)
 
-        title_label = ctk.CTkLabel(row, text=title,
-                                    font=(FONT_FAMILY, 10),
-                                    text_color=FG, anchor="w")
-        title_label.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        p = ctk.CTkLabel(row, text=process, font=(F, 10),
+                          text_color=FG2, width=120, anchor="w")
+        p.pack(side="left", padx=(0, 6))
 
-        def on_click(event=None):
-            if hwnd in selected_set:
-                selected_set.discard(hwnd)
-                row.configure(fg_color=CARD_BG)
+        t = ctk.CTkLabel(row, text=title, font=(F, 10),
+                          text_color=FG, anchor="w")
+        t.pack(side="left", fill="x", expand=True, padx=(0, 10))
+
+        if not is_last:
+            div = ctk.CTkFrame(parent, height=1, fg_color=DIVIDER)
+            div.pack(fill="x", padx=14)
+
+        def select(e=None):
+            if hwnd in sel_set:
+                sel_set.discard(hwnd)
+                row.configure(fg_color=CARD)
+                indicator.configure(fg_color=CARD)
             else:
-                selected_set.add(hwnd)
-                row.configure(fg_color="#e8e7e5")
+                sel_set.add(hwnd)
+                row.configure(fg_color=SELECT)
+                indicator.configure(fg_color=ACCENT)
 
-        def on_enter(event=None):
-            if hwnd not in selected_set:
-                row.configure(fg_color="#f4f3f1")
+        def enter(e=None):
+            if hwnd not in sel_set:
+                row.configure(fg_color=HOVER)
 
-        def on_leave(event=None):
-            if hwnd not in selected_set:
-                row.configure(fg_color=CARD_BG)
+        def leave(e=None):
+            if hwnd not in sel_set:
+                row.configure(fg_color=CARD)
 
-        for widget in [row, proc_label, title_label]:
-            widget.bind("<Button-1>", on_click)
-            widget.bind("<Enter>", on_enter)
-            widget.bind("<Leave>", on_leave)
+        for w in [row, p, t, indicator]:
+            w.bind("<Button-1>", select)
+            w.bind("<Enter>", enter)
+            w.bind("<Leave>", leave)
 
-        return row
-
-    # ── 이벤트 핸들러 ────────────────────────────
+    # ── 이벤트 ───────────────────────────────────
 
     def _refresh_list(self):
         self._selected_visible.clear()
         self._selected_hidden.clear()
 
-        for widget in self.visible_scroll.winfo_children():
-            widget.destroy()
-        for widget in self.hidden_scroll.winfo_children():
-            widget.destroy()
-
-        self._visible_items = {}
-        self._hidden_items = {}
+        for w in self.visible_scroll.winfo_children():
+            w.destroy()
+        for w in self.hidden_scroll.winfo_children():
+            w.destroy()
 
         windows = enum_taskbar_windows()
-        own_hwnd = self.root.winfo_id()
-
+        own = self.root.winfo_id()
+        visible = []
         for w in windows:
-            if w["hwnd"] == own_hwnd or w["hwnd"] in self.core.hidden:
+            if w["hwnd"] == own or w["hwnd"] in self.core.hidden:
                 continue
             proc = w["process"].lower()
             if proc.startswith("slink") and proc.endswith(".exe"):
                 continue
-            row = self._create_window_row(
-                self.visible_scroll, w["hwnd"],
-                w["process"], w["title"],
-                self._selected_visible)
-            self._visible_items[w["hwnd"]] = row
+            visible.append(w)
 
-        for hwnd, info in self.core.hidden.items():
-            row = self._create_window_row(
-                self.hidden_scroll, hwnd,
-                info.process, info.title,
-                self._selected_hidden)
-            self._hidden_items[hwnd] = row
+        for i, w in enumerate(visible):
+            self._make_row(self.visible_scroll, w["hwnd"],
+                           w["process"], w["title"],
+                           self._selected_visible,
+                           is_last=(i == len(visible) - 1))
 
-        v = len(self._visible_items)
-        h = len(self._hidden_items)
-        self.status_label.configure(text=f"{v} visible  ·  {h} hidden")
+        hidden_list = list(self.core.hidden.items())
+        for i, (hwnd, info) in enumerate(hidden_list):
+            self._make_row(self.hidden_scroll, hwnd,
+                           info.process, info.title,
+                           self._selected_hidden,
+                           is_last=(i == len(hidden_list) - 1))
+
+        self.status_label.configure(
+            text=f"{len(visible)} visible  ·  {len(hidden_list)} hidden")
 
     def _on_hide(self):
         if not self._selected_visible:
             self.status_label.configure(text="Select a window to hide")
             return
-        count = 0
+        c = 0
         for hwnd in list(self._selected_visible):
-            row = self._visible_items.get(hwnd)
-            if row:
-                vals = [w.cget("text") for w in row.winfo_children()]
-                process = vals[0] if vals else "unknown"
-                title = vals[1] if len(vals) > 1 else ""
-                if self.core.hide_from_taskbar(hwnd, title, process):
-                    count += 1
-        self.status_label.configure(text=f"Hidden {count} window(s)")
+            w = [x for x in enum_taskbar_windows() if x["hwnd"] == hwnd]
+            if w:
+                if self.core.hide_from_taskbar(hwnd, w[0]["title"], w[0]["process"]):
+                    c += 1
+        self.status_label.configure(text=f"Hidden {c} window(s)")
         self._refresh_list()
 
     def _on_show(self):
         if not self._selected_hidden:
             self.status_label.configure(text="Select a window to restore")
             return
-        count = 0
+        c = 0
         for hwnd in list(self._selected_hidden):
             if self.core.show_on_taskbar(hwnd):
-                count += 1
-        self.status_label.configure(text=f"Restored {count} window(s)")
+                c += 1
+        self.status_label.configure(text=f"Restored {c} window(s)")
         self._refresh_list()
 
     def _start_watcher(self):
@@ -392,41 +401,38 @@ class SlinkGUI:
     # ── 업데이트 ─────────────────────────────────
 
     def _on_check_update(self):
-        self.update_status_label.configure(text="Checking...", text_color=FG_MUTED)
-        self.btn_check_update.configure(state="disabled")
+        self.lbl_update.configure(text="Checking...", text_color=FG3)
+        self.btn_check.configure(state="disabled")
 
-        def callback(latest, download_url, error):
-            if error:
-                self.root.after(0, lambda: self._show_update_result(
-                    f"Failed: {error}"))
-            elif download_url:
-                self.root.after(0, lambda: self._show_update_result(
-                    f"v{latest} available", is_new=True,
-                    download_url=download_url))
+        def cb(latest, url, err):
+            if err:
+                self.root.after(0, lambda: self._update_result(f"Failed", False))
+            elif url:
+                self.root.after(0, lambda: self._update_result(
+                    f"v{latest} available", True, url))
             else:
-                self.root.after(0, lambda: self._show_update_result(
-                    "Up to date"))
+                self.root.after(0, lambda: self._update_result("Up to date", False))
 
-        check_for_update(callback)
+        check_for_update(cb)
 
-    def _show_update_result(self, msg, is_new=False, download_url=None):
-        self.update_status_label.configure(text=msg)
-        self.btn_check_update.configure(state="normal")
+    def _update_result(self, msg, is_new, url=None):
+        self.lbl_update.configure(text=msg)
+        self.btn_check.configure(state="normal")
         if is_new:
-            self.update_status_label.configure(text_color=DANGER)
-            self._latest_download_url = download_url
-            if download_url:
-                self.btn_do_update.pack(side="left", padx=(8, 0),
-                                         before=self.update_status_label)
+            self.lbl_update.configure(text_color=DANGER)
+            self._latest_download_url = url
+            if url:
+                self.btn_update.pack(side="left", padx=(6, 0),
+                                      before=self.lbl_update)
         else:
-            self.update_status_label.configure(text_color=SUCCESS)
-            self.btn_do_update.pack_forget()
+            self.lbl_update.configure(text_color=SUCCESS)
+            self.btn_update.pack_forget()
 
     def _on_do_update(self):
         if not self._latest_download_url:
             return
-        self.btn_do_update.configure(state="disabled")
-        self.update_status_label.configure(text="Downloading...", text_color=FG_MUTED)
+        self.btn_update.configure(state="disabled")
+        self.lbl_update.configure(text="Downloading...", text_color=FG3)
 
         def on_done(close_func):
             def _do():
@@ -437,15 +443,13 @@ class SlinkGUI:
             self.root.after(0, _do)
 
         def on_error(msg):
-            self.root.after(0, lambda: self._update_error(msg))
+            self.root.after(0, lambda: self._update_fail(msg))
 
         download_and_apply(self._latest_download_url, on_done, on_error)
 
-    def _update_error(self, error: str):
-        self.update_status_label.configure(text=f"Failed: {error}", text_color=DANGER)
-        self.btn_do_update.configure(state="normal")
-
-    # ── 실행 ─────────────────────────────────────
+    def _update_fail(self, err):
+        self.lbl_update.configure(text=f"Failed: {err}", text_color=DANGER)
+        self.btn_update.configure(state="normal")
 
     def run(self):
         self.root.mainloop()
