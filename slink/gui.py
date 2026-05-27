@@ -16,7 +16,7 @@ class Api:
     """Python↔JS 브릿지. JS에서 pywebview.api.xxx()로 호출."""
 
     def __init__(self, core: SlinkCore, window_ref, quit_callback=None):
-        self.core = core
+        self._core = core
         self._window_ref = window_ref  # lambda로 지연 참조
         self._latest_download_url = None
         self._quit_callback = quit_callback
@@ -56,7 +56,7 @@ class Api:
         return [
             {"hwnd": hwnd, "title": info.title,
              "process": info.process.replace(".exe", "")}
-            for hwnd, info in self.core.hidden.items()
+            for hwnd, info in self._core.hidden.items()
         ]
 
     def hide_windows(self, hwnds):
@@ -65,7 +65,7 @@ class Api:
         for hwnd in hwnds:
             windows = enum_taskbar_windows()
             w = next((x for x in windows if x["hwnd"] == hwnd), None)
-            if w and self.core.hide_from_taskbar(hwnd, w["title"], w["process"]):
+            if w and self._core.hide_from_taskbar(hwnd, w["title"], w["process"]):
                 count += 1
         return {"hidden_count": count}
 
@@ -73,7 +73,7 @@ class Api:
         """숨긴 창들을 복원한다."""
         count = 0
         for hwnd in hwnds:
-            if self.core.show_on_taskbar(hwnd):
+            if self._core.show_on_taskbar(hwnd):
                 count += 1
         return {"shown_count": count}
 
@@ -114,7 +114,7 @@ class Api:
         result_type, payload = q.get(timeout=120)
 
         if result_type == "done":
-            self.core.restore_all()
+            self._core.restore_all()
             payload()  # close_func — 프로세스 종료
             return {"status": "done"}
         else:
@@ -139,14 +139,14 @@ class Api:
         if self._quit_callback:
             self._quit_callback()
         else:
-            self.core.restore_all()
+            self._core.restore_all()
             if self.window:
                 self.window.destroy()
 
 
 class SlinkGUI:
     def __init__(self, core: SlinkCore):
-        self.core = core
+        self._core = core
         self.window = None
         self.tray_icon = None
         self._api = Api(core, lambda: self.window, quit_callback=self._on_quit)
@@ -164,7 +164,7 @@ class SlinkGUI:
             self.window.restore()
 
     def _on_quit(self):
-        self.core.restore_all()
+        self._core.restore_all()
         if self.tray_icon:
             self.tray_icon.stop()
         if self.window:
@@ -182,8 +182,8 @@ class SlinkGUI:
             import time
             while True:
                 try:
-                    if self.core.hidden:
-                        self.core.enforce_hidden()
+                    if self._core.hidden:
+                        self._core.enforce_hidden()
                 except Exception:
                     pass
                 time.sleep(1)
