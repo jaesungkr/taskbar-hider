@@ -39,22 +39,22 @@ class ApiHandler(BaseHTTPRequestHandler):
             self._json({"ok": True})
 
         elif self.path == "/api/minimize":
+            self._json({"ok": True})
             gui = ApiHandler.gui_ref
             if gui and gui.window:
-                gui.window.minimize()
-            self._json({"ok": True})
+                threading.Timer(0.1, gui.window.minimize).start()
 
         elif self.path == "/api/hide":
+            self._json({"ok": True})
             gui = ApiHandler.gui_ref
             if gui and gui.window:
-                gui.window.hide()
-            self._json({"ok": True})
+                threading.Timer(0.1, gui.window.hide).start()
 
         elif self.path == "/api/quit":
+            self._json({"ok": True})
             gui = ApiHandler.gui_ref
             if gui:
-                gui._on_quit()
-            self._json({"ok": True})
+                threading.Timer(0.1, gui._on_quit).start()
 
         else:
             self._json({"error": "not found"}, 404)
