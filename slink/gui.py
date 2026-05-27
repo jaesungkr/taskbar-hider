@@ -13,17 +13,18 @@ from slink.resources import get_resource_path
 
 
 class Api:
-    """Python↔JS 브릿지. JS에서 pywebview.api.xxx()로 호출."""
+    """Python↔JS 브릿지. JS에서 pywebview.api.xxx()로 호출.
+
+    주의: pywebview는 이 객체의 모든 public 속성/메서드를 재귀 탐색한다.
+    - 모든 내부 상태는 _prefix (private)
+    - pywebview Window 객체를 절대 public으로 노출하지 않을 것
+    """
 
     def __init__(self, core: SlinkCore, window_ref, quit_callback=None):
         self._core = core
-        self._window_ref = window_ref  # lambda로 지연 참조
+        self._window_ref = window_ref
         self._latest_download_url = None
         self._quit_callback = quit_callback
-
-    @property
-    def window(self):
-        return self._window_ref()
 
     def get_app_info(self):
         return {
@@ -126,13 +127,15 @@ class Api:
 
     def minimize_window(self):
         """창 최소화."""
-        if self.window:
-            self.window.minimize()
+        w = self._window_ref()
+        if w:
+            w.minimize()
 
     def hide_window(self):
         """창을 트레이로 숨김 (X 버튼)."""
-        if self.window:
-            self.window.hide()
+        w = self._window_ref()
+        if w:
+            w.hide()
 
     def quit_app(self):
         """앱 종료."""
@@ -140,8 +143,9 @@ class Api:
             self._quit_callback()
         else:
             self._core.restore_all()
-            if self.window:
-                self.window.destroy()
+            w = self._window_ref()
+            if w:
+                w.destroy()
 
 
 class SlinkGUI:
@@ -169,12 +173,6 @@ class SlinkGUI:
             self.tray_icon.stop()
         if self.window:
             self.window.destroy()
-
-    def _on_closing(self):
-        """OS X 버튼 → 트레이로 숨김."""
-        if self.window:
-            self.window.hide()
-        return False  # True=닫기 허용, False=닫기 차단
 
     def _hook_close_button(self):
         """Win32 WndProc 서브클래싱으로 X 버튼을 트레이 숨김으로 변경.
