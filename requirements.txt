@@ -2,3 +2,4 @@ comtypes
 pystray
 Pillow
 pywebview
+pythonnet
