@@ -178,12 +178,6 @@ class SlinkGUI:
         if self.window:
             self.window.destroy()
 
-    def _on_closing(self):
-        """OS X 버튼 → 트레이로 숨김. False 반환으로 닫기 차단."""
-        if self.window:
-            self.window.hide()
-        return False
-
     def _start_enforce_loop(self):
         """1초마다 숨김 상태 유지."""
         def loop():
@@ -215,18 +209,16 @@ class SlinkGUI:
                     html_path = alt
                     break
 
-        # HTML을 문자열로 읽어서 직접 로드 (경로 문제 회피)
         with open(html_path, "r", encoding="utf-8") as f:
             html_content = f.read()
 
         self.window = webview.create_window(
             "Slink",
             html=html_content,
-            js_api=self._api,
             width=540,
             height=520,
             min_size=(420, 380),
-            frameless=False,
+            frameless=True,
             easy_drag=False,
             background_color="#171717",
         )
@@ -234,10 +226,28 @@ class SlinkGUI:
         def on_start():
             self._init_tray()
             self._start_enforce_loop()
-            # X 버튼 → 트레이 숨김
-            self.window.events.closing += self._on_closing
 
-        # 아이콘 설정
+            # expose로 개별 함수 노출 (js_api 객체 탐색 회피)
+            # 바운드 메서드를 래핑 — expose는 __name__ 속성이 필요
+            api = self._api
+
+            def get_app_info(): return api.get_app_info()
+            def get_windows(): return api.get_windows()
+            def hide_windows(hwnds): return api.hide_windows(hwnds)
+            def show_windows(hwnds): return api.show_windows(hwnds)
+            def check_update(): return api.check_update()
+            def do_update(): return api.do_update()
+            def open_releases(): return api.open_releases()
+            def minimize_window(): return api.minimize_window()
+            def hide_window(): return api.hide_window()
+            def quit_app(): return api.quit_app()
+
+            self.window.expose(
+                get_app_info, get_windows, hide_windows, show_windows,
+                check_update, do_update, open_releases,
+                minimize_window, hide_window, quit_app,
+            )
+
         ico = get_resource_path("slink.ico")
 
         webview.start(func=on_start, debug=False, gui="edgechromium",
