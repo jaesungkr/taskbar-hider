@@ -26,6 +26,28 @@ _core = None
 _tray = None
 _cmd_queue = queue.Queue()
 
+# 설정 파일
+def _settings_path():
+    d = os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")), "Slink")
+    os.makedirs(d, exist_ok=True)
+    return os.path.join(d, "settings.json")
+
+def _load_settings():
+    try:
+        with open(_settings_path(), "r") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def _save_settings(data):
+    try:
+        cur = _load_settings()
+        cur.update(data)
+        with open(_settings_path(), "w") as f:
+            json.dump(cur, f)
+    except Exception:
+        pass
+
 
 class ApiHandler(BaseHTTPRequestHandler):
     def log_message(self, *args):
@@ -48,6 +70,16 @@ class ApiHandler(BaseHTTPRequestHandler):
             self._json(self._check_update())
         elif self.path == "/api/do_update":
             self._json(self._do_update())
+        elif self.path == "/api/get_theme":
+            s = _load_settings()
+            self._json({"theme": s.get("theme", "dark")})
+        elif self.path.startswith("/api/set_theme/"):
+            theme = self.path.split("/")[-1]
+            if theme in ("dark", "light"):
+                _save_settings({"theme": theme})
+                self._json({"ok": True})
+            else:
+                self._json({"error": "invalid theme"}, 400)
         elif self.path == "/api/open_releases":
             import webbrowser
             webbrowser.open(f"{APP_GITHUB}/releases/latest")

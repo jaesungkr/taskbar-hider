@@ -39,6 +39,23 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* ── Light Theme ──────────────────────────── */
+body.light {
+  --bg: #f5f5f3;
+  --surface: #ffffff;
+  --surface-2: #f0efed;
+  --surface-3: #e8e7e5;
+  --border: #e0dfdd;
+  --border-light: #d4d3d1;
+  --fg: #1a1a1a;
+  --fg-2: #555;
+  --fg-3: #999;
+  --accent: #1a1a1a;
+  --accent-dim: rgba(26,26,26,0.05);
+  --danger: #d45555;
+  --success: #2d7a4a;
+}
+
 /* ── Title Bar ───────────────────────────── */
 .titlebar {
   height: 38px;
@@ -169,7 +186,7 @@ html, body {
 .btn:active { transform: scale(0.97); }
 
 .btn-primary { background: var(--fg); color: var(--bg); border-color: var(--fg); }
-.btn-primary:hover { background: #d4d4d2; border-color: #d4d4d2; }
+.btn-primary:hover { background: var(--fg-2); border-color: var(--fg-2); }
 
 .btn-icon {
   width: 30px; height: 30px;
@@ -260,7 +277,7 @@ html, body {
   position: relative;
 }
 .row:hover { background: var(--accent-dim); }
-.row.selected { background: rgba(232,232,230,0.06); }
+.row.selected { background: var(--accent-dim); }
 .row.selected::before {
   content: '';
   position: absolute;
@@ -324,7 +341,7 @@ html, body {
 .btn-sm:hover { border-color: var(--border-light); color: var(--fg); }
 .btn-sm:disabled { opacity: 0.4; cursor: not-allowed; }
 .btn-sm.primary { background: var(--fg); color: var(--bg); border-color: var(--fg); }
-.btn-sm.primary:hover { background: #d4d4d2; }
+.btn-sm.primary:hover { background: var(--fg-2); }
 
 .update-status { font-size: 11px; color: var(--fg-3); font-family: var(--mono); }
 .update-status.available { color: var(--danger); }
@@ -336,6 +353,32 @@ html, body {
   padding: 4px 0; transition: color var(--transition);
 }
 .link-btn:hover { color: var(--fg); }
+
+/* ── Theme Toggle ─────────────────────────── */
+.theme-toggle {
+  display: inline-flex;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.theme-opt {
+  padding: 5px 14px;
+  font-size: 11px;
+  font-family: var(--font);
+  font-weight: 500;
+  color: var(--fg-3);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.theme-opt:hover { color: var(--fg-2); }
+.theme-opt.active {
+  background: var(--fg);
+  color: var(--bg);
+}
 
 /* ── Animations ───────────────────────────── */
 @keyframes fadeIn {
@@ -433,6 +476,14 @@ html, body {
       </div>
 
       <div class="card">
+        <div class="card-title">Theme</div>
+        <div class="theme-toggle">
+          <button class="theme-opt active" id="theme-dark" onclick="setTheme('dark')">Dark</button>
+          <button class="theme-opt" id="theme-light" onclick="setTheme('light')">Light</button>
+        </div>
+      </div>
+
+      <div class="card">
         <div class="card-title">Update</div>
         <div class="update-row">
           <button class="btn-sm" id="btn-check" onclick="checkUpdate()">Check for Updates</button>
@@ -474,8 +525,28 @@ window.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('info-app').textContent = info.name;
   document.getElementById('info-version').textContent = 'v' + info.version;
   document.getElementById('info-author').textContent = info.author;
+
+  // 저장된 테마 로드
+  const settings = await api('/api/get_theme');
+  if (settings.theme) applyTheme(settings.theme);
+
   refreshList();
 });
+
+function applyTheme(theme) {
+  if (theme === 'light') {
+    document.body.classList.add('light');
+  } else {
+    document.body.classList.remove('light');
+  }
+  document.getElementById('theme-dark').classList.toggle('active', theme !== 'light');
+  document.getElementById('theme-light').classList.toggle('active', theme === 'light');
+}
+
+async function setTheme(theme) {
+  applyTheme(theme);
+  await api('/api/set_theme/' + theme);
+}
 
 function switchTab(tab) {
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
