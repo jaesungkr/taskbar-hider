@@ -180,6 +180,56 @@ html, body {
 
 .status { margin-left: auto; font-size: 11px; color: var(--fg-3); font-family: var(--mono); }
 
+/* ── Search ───────────────────────────────── */
+.search-wrap {
+  position: relative;
+  flex: 1;
+  max-width: 200px;
+  margin-left: 8px;
+}
+
+.search-input {
+  width: 100%;
+  height: 30px;
+  padding: 0 10px 0 28px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--fg);
+  font-family: var(--font);
+  font-size: 11px;
+  border-radius: var(--radius-sm);
+  outline: none;
+  transition: border-color var(--transition);
+}
+.search-input::placeholder { color: var(--fg-3); }
+.search-input:focus { border-color: var(--border-light); }
+
+.search-icon {
+  position: absolute;
+  left: 9px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--fg-3);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.search-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--fg-3);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 2px;
+  display: none;
+  line-height: 1;
+}
+.search-clear:hover { color: var(--fg); }
+
 /* ── Section ──────────────────────────────── */
 .section { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 .section + .section { margin-top: 12px; }
@@ -347,6 +397,11 @@ html, body {
       <button class="btn btn-primary" onclick="hideSelected()"><span>↓</span> Hide</button>
       <button class="btn" onclick="showSelected()"><span>↑</span> Show</button>
       <button class="btn btn-icon" onclick="refreshList()" title="Refresh">↻</button>
+      <div class="search-wrap">
+        <span class="search-icon">⌕</span>
+        <input class="search-input" id="search" type="text" placeholder="Search..." oninput="onSearch()" />
+        <button class="search-clear" id="search-clear" onclick="clearSearch()">×</button>
+      </div>
       <span class="status" id="status"></span>
     </div>
 
@@ -409,6 +464,8 @@ async function api(path, body) {
 
 let selectedVisible = new Set();
 let selectedHidden = new Set();
+let cachedVisible = [];
+let cachedHidden = [];
 
 // ── Init ──
 window.addEventListener('DOMContentLoaded', async () => {
@@ -427,15 +484,32 @@ function switchTab(tab) {
 
 async function refreshList() {
   const data = await api('/api/windows');
-  const vis = data.visible || [];
-  const hid = data.hidden || [];
+  cachedVisible = data.visible || [];
+  cachedHidden = data.hidden || [];
   selectedVisible.clear();
   selectedHidden.clear();
+  renderFiltered();
+}
+
+function renderFiltered() {
+  const q = (document.getElementById('search').value || '').toLowerCase().trim();
+  const vis = q ? cachedVisible.filter(w => w.process.toLowerCase().includes(q) || w.title.toLowerCase().includes(q)) : cachedVisible;
+  const hid = q ? cachedHidden.filter(w => w.process.toLowerCase().includes(q) || w.title.toLowerCase().includes(q)) : cachedHidden;
+
   renderList('visible-list', vis, selectedVisible);
   renderList('hidden-list', hid, selectedHidden);
-  document.getElementById('vis-count').textContent = vis.length;
-  document.getElementById('hid-count').textContent = hid.length;
-  document.getElementById('status').textContent = vis.length + ' visible · ' + hid.length + ' hidden';
+  document.getElementById('vis-count').textContent = q ? vis.length + '/' + cachedVisible.length : cachedVisible.length;
+  document.getElementById('hid-count').textContent = q ? hid.length + '/' + cachedHidden.length : cachedHidden.length;
+  document.getElementById('status').textContent = cachedVisible.length + ' visible · ' + cachedHidden.length + ' hidden';
+
+  document.getElementById('search-clear').style.display = q ? 'block' : 'none';
+}
+
+function onSearch() { renderFiltered(); }
+function clearSearch() {
+  document.getElementById('search').value = '';
+  renderFiltered();
+  document.getElementById('search').focus();
 }
 
 function renderList(id, items, selSet) {
