@@ -218,7 +218,7 @@ class SlinkGUI:
             width=540,
             height=520,
             min_size=(420, 380),
-            frameless=True,
+            frameless=False,
             easy_drag=False,
             background_color="#171717",
         )
