@@ -137,6 +137,8 @@ class ApiHandler(BaseHTTPRequestHandler):
             p = w["process"].lower()
             if p.startswith("slink") and p.endswith(".exe"):
                 continue
+            if p == "explorer.exe":
+                continue
             visible.append({"hwnd": w["hwnd"], "title": w["title"],
                             "process": w["process"].replace(".exe", "")})
         hidden = [{"hwnd": h, "title": i.title,
