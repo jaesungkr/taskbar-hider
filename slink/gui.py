@@ -128,17 +128,16 @@ class ApiHandler(BaseHTTPRequestHandler):
         u = getattr(ApiHandler, "_update_url", None)
         if not u:
             return {"status": "error", "message": "No URL"}
-        q = queue.Queue()
-        download_and_apply(u, lambda f: q.put(("ok", f)), lambda m: q.put(("err", m)))
-        try:
-            t, p = q.get(timeout=120)
-        except Exception:
-            return {"status": "error", "message": "timeout"}
-        if t == "ok":
+
+        def on_done(close_func):
             _core.restore_all()
-            p()
-            return {"status": "done"}
-        return {"status": "error", "message": str(p)}
+            close_func()
+
+        def on_error(msg):
+            pass  # UI에서 타임아웃으로 처리
+
+        download_and_apply(u, on_done, on_error)
+        return {"status": "downloading"}
 
 
 def _do_quit():
