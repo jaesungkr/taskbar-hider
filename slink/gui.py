@@ -170,12 +170,6 @@ class SlinkGUI:
         if self.window:
             self.window.destroy()
 
-    def _on_closing(self):
-        """X 버튼 → 트레이로 최소화."""
-        if self.window:
-            self.window.hide()
-        return False  # 창 닫기 방지
-
     def _start_enforce_loop(self):
         """1초마다 숨김 상태 유지."""
         def loop():
@@ -223,8 +217,6 @@ class SlinkGUI:
             background_color="#171717",
         )
 
-        self.window.events.closing += self._on_closing
-
         def on_start():
             self._init_tray()
             self._start_enforce_loop()
@@ -236,4 +228,4 @@ class SlinkGUI:
                 except Exception:
                     pass
 
-        webview.start(func=on_start, debug=False)
+        webview.start(func=on_start, debug=False, gui="edgechromium")
