@@ -516,7 +516,7 @@ function renderList(id, items, selSet) {
   const el = document.getElementById(id);
   if (!items.length) { el.innerHTML = '<div class="list-empty">No windows</div>'; return; }
   el.innerHTML = items.map((w, i) =>
-    `<div class="row" data-hwnd="${w.hwnd}" onclick="toggle(this,${w.hwnd},'${id}')"
+    `<div class="row${selSet.has(w.hwnd) ? ' selected' : ''}" data-hwnd="${w.hwnd}" onclick="toggle(this,${w.hwnd},'${id}')"
           style="animation-delay:${Math.min(i*20,200)}ms">
       <span class="row-process">${esc(w.process)}</span>
       <span class="row-title">${esc(w.title)}</span>
