@@ -67,6 +67,10 @@ if __name__ == "__main__":
             None, "Slink is already running.", "Slink", 0x40)
         sys.exit(0)
 
+    # pywebview 내부 AccessibilityObject 재귀 에러 로그 억제
+    import logging
+    logging.getLogger('pywebview').setLevel(logging.CRITICAL)
+
     from slink.core import SlinkCore
     from slink.gui import SlinkGUI
 

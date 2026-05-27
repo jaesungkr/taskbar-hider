@@ -170,6 +170,12 @@ class SlinkGUI:
         if self.window:
             self.window.destroy()
 
+    def _on_closing(self):
+        """OS X 버튼 → 트레이로 숨김."""
+        if self.window:
+            self.window.hide()
+        return False  # True=닫기 허용, False=닫기 차단
+
     def _start_enforce_loop(self):
         """1초마다 숨김 상태 유지."""
         def loop():
@@ -220,12 +226,11 @@ class SlinkGUI:
         def on_start():
             self._init_tray()
             self._start_enforce_loop()
-            # 아이콘 설정
-            ico = get_resource_path("slink.ico")
-            if os.path.exists(ico):
-                try:
-                    self.window.icon = ico
-                except Exception:
-                    pass
+            # closing 이벤트 — X 버튼을 트레이 숨김으로 전환
+            self.window.events.closing += self._on_closing
 
-        webview.start(func=on_start, debug=False, gui="edgechromium")
+        # 아이콘 설정
+        ico = get_resource_path("slink.ico")
+
+        webview.start(func=on_start, debug=False, gui="edgechromium",
+                      icon=ico if os.path.exists(ico) else None)
