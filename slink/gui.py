@@ -1,8 +1,9 @@
-"""Slink GUI — pywebview + HTML/CSS/JS for premium desktop UI."""
+"""Slink GUI — pywebview + local HTTP API server."""
 
 import os
 import json
 import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 
 from slink import APP_NAME, APP_VERSION, APP_AUTHOR, APP_GITHUB
 from slink.core import SlinkCore
@@ -12,144 +13,166 @@ from slink.updater import check_for_update, download_and_apply
 from slink.resources import get_resource_path
 
 
-class Api:
-    """Python↔JS 브릿지. JS에서 pywebview.api.xxx()로 호출.
+class ApiHandler(BaseHTTPRequestHandler):
+    """로컬 HTTP API — JS에서 fetch()로 호출."""
 
-    주의: pywebview는 이 객체의 모든 public 속성/메서드를 재귀 탐색한다.
-    - 모든 내부 상태는 _prefix (private)
-    - pywebview Window 객체를 절대 public으로 노출하지 않을 것
-    """
+    core: SlinkCore = None
+    gui_ref = None  # SlinkGUI 참조
 
-    def __init__(self, core: SlinkCore, window_ref, quit_callback=None):
-        self._core = core
-        self._window_ref = window_ref
-        self._latest_download_url = None
-        self._quit_callback = quit_callback
+    def log_message(self, *args):
+        pass  # 콘솔 로그 억제
 
-    def get_app_info(self):
-        return {
-            "name": APP_NAME,
-            "version": APP_VERSION,
-            "author": APP_AUTHOR,
-            "github": APP_GITHUB,
-        }
+    def do_GET(self):
+        if self.path == "/api/info":
+            self._json({"name": APP_NAME, "version": APP_VERSION,
+                         "author": APP_AUTHOR, "github": APP_GITHUB})
 
-    def get_windows(self):
-        """작업표시줄에 표시된 창 목록 반환."""
+        elif self.path == "/api/windows":
+            self._json(self._get_all_windows())
+
+        elif self.path == "/api/check_update":
+            self._json(self._check_update())
+
+        elif self.path == "/api/open_releases":
+            import webbrowser
+            webbrowser.open(f"{APP_GITHUB}/releases/latest")
+            self._json({"ok": True})
+
+        elif self.path == "/api/minimize":
+            gui = ApiHandler.gui_ref
+            if gui and gui.window:
+                gui.window.minimize()
+            self._json({"ok": True})
+
+        elif self.path == "/api/hide":
+            gui = ApiHandler.gui_ref
+            if gui and gui.window:
+                gui.window.hide()
+            self._json({"ok": True})
+
+        elif self.path == "/api/quit":
+            gui = ApiHandler.gui_ref
+            if gui:
+                gui._on_quit()
+            self._json({"ok": True})
+
+        else:
+            self._json({"error": "not found"}, 404)
+
+    def do_POST(self):
+        body = self._read_body()
+
+        if self.path == "/api/hide_windows":
+            hwnds = body.get("hwnds", [])
+            count = 0
+            for hwnd in hwnds:
+                windows = enum_taskbar_windows()
+                w = next((x for x in windows if x["hwnd"] == hwnd), None)
+                if w and ApiHandler.core.hide_from_taskbar(hwnd, w["title"], w["process"]):
+                    count += 1
+            self._json({"hidden_count": count})
+
+        elif self.path == "/api/show_windows":
+            hwnds = body.get("hwnds", [])
+            count = 0
+            for hwnd in hwnds:
+                if ApiHandler.core.show_on_taskbar(hwnd):
+                    count += 1
+            self._json({"shown_count": count})
+
+        elif self.path == "/api/do_update":
+            self._json(self._do_update())
+
+        else:
+            self._json({"error": "not found"}, 404)
+
+    def _read_body(self):
         try:
-            import os
-            own_pid = os.getpid()
-            windows = enum_taskbar_windows()
-            visible = []
-            for w in windows:
-                # 자기 자신 제외: PID 일치 or Slink.exe
-                if w.get("pid") == own_pid:
-                    continue
-                proc = w["process"].lower()
-                if proc.startswith("slink") and proc.endswith(".exe"):
-                    continue
-                visible.append({
-                    "hwnd": w["hwnd"],
-                    "title": w["title"],
-                    "process": w["process"].replace(".exe", ""),
-                })
-            return {"visible": visible, "hidden": self._get_hidden()}
-        except Exception as e:
-            return {"visible": [], "hidden": [], "error": str(e)}
+            length = int(self.headers.get("Content-Length", 0))
+            data = self.rfile.read(length)
+            return json.loads(data) if data else {}
+        except Exception:
+            return {}
 
-    def _get_hidden(self):
-        return [
+    def _json(self, data, code=200):
+        body = json.dumps(data).encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _get_all_windows(self):
+        own_pid = os.getpid()
+        windows = enum_taskbar_windows()
+        visible = []
+        for w in windows:
+            if w.get("pid") == own_pid:
+                continue
+            proc = w["process"].lower()
+            if proc.startswith("slink") and proc.endswith(".exe"):
+                continue
+            visible.append({
+                "hwnd": w["hwnd"],
+                "title": w["title"],
+                "process": w["process"].replace(".exe", ""),
+            })
+
+        hidden = [
             {"hwnd": hwnd, "title": info.title,
              "process": info.process.replace(".exe", "")}
-            for hwnd, info in self._core.hidden.items()
+            for hwnd, info in ApiHandler.core.hidden.items()
         ]
+        return {"visible": visible, "hidden": hidden}
 
-    def hide_windows(self, hwnds):
-        """선택한 창들을 숨긴다."""
-        count = 0
-        for hwnd in hwnds:
-            windows = enum_taskbar_windows()
-            w = next((x for x in windows if x["hwnd"] == hwnd), None)
-            if w and self._core.hide_from_taskbar(hwnd, w["title"], w["process"]):
-                count += 1
-        return {"hidden_count": count}
-
-    def show_windows(self, hwnds):
-        """숨긴 창들을 복원한다."""
-        count = 0
-        for hwnd in hwnds:
-            if self._core.show_on_taskbar(hwnd):
-                count += 1
-        return {"shown_count": count}
-
-    def check_update(self):
-        """업데이트 확인 (동기)."""
+    def _check_update(self):
         import queue
         q = queue.Queue()
-
-        def cb(latest, url, err):
-            q.put((latest, url, err))
-
-        check_for_update(cb)
-        latest, url, err = q.get(timeout=15)
+        check_for_update(lambda latest, url, err: q.put((latest, url, err)))
+        try:
+            latest, url, err = q.get(timeout=15)
+        except Exception:
+            return {"status": "error", "message": "timeout"}
 
         if err:
             return {"status": "error", "message": str(err)}
         elif url:
-            self._latest_download_url = url
+            ApiHandler._update_url = url
             return {"status": "available", "version": latest}
         else:
             return {"status": "up_to_date"}
 
-    def do_update(self):
-        """업데이트 다운로드 및 적용."""
-        if not self._latest_download_url:
+    def _do_update(self):
+        url = getattr(ApiHandler, "_update_url", None)
+        if not url:
             return {"status": "error", "message": "No update URL"}
 
         import queue
         q = queue.Queue()
-
-        def on_done(close_func):
-            q.put(("done", close_func))
-
-        def on_error(msg):
-            q.put(("error", msg))
-
-        download_and_apply(self._latest_download_url, on_done, on_error)
-        result_type, payload = q.get(timeout=120)
+        download_and_apply(url,
+                           lambda close_func: q.put(("done", close_func)),
+                           lambda msg: q.put(("error", msg)))
+        try:
+            result_type, payload = q.get(timeout=120)
+        except Exception:
+            return {"status": "error", "message": "timeout"}
 
         if result_type == "done":
-            self._core.restore_all()
-            payload()  # close_func — 프로세스 종료
+            ApiHandler.core.restore_all()
+            payload()
             return {"status": "done"}
-        else:
-            return {"status": "error", "message": str(payload)}
+        return {"status": "error", "message": str(payload)}
 
-    def open_releases(self):
-        import webbrowser
-        webbrowser.open(f"{APP_GITHUB}/releases/latest")
 
-    def minimize_window(self):
-        """창 최소화."""
-        w = self._window_ref()
-        if w:
-            w.minimize()
-
-    def hide_window(self):
-        """창을 트레이로 숨김 (X 버튼)."""
-        w = self._window_ref()
-        if w:
-            w.hide()
-
-    def quit_app(self):
-        """앱 종료."""
-        if self._quit_callback:
-            self._quit_callback()
-        else:
-            self._core.restore_all()
-            w = self._window_ref()
-            if w:
-                w.destroy()
+def _start_api_server(core, gui, port=18925):
+    """백그라운드 HTTP API 서버 시작."""
+    ApiHandler.core = core
+    ApiHandler.gui_ref = gui
+    server = HTTPServer(("127.0.0.1", port), ApiHandler)
+    t = threading.Thread(target=server.serve_forever, daemon=True)
+    t.start()
+    return port
 
 
 class SlinkGUI:
@@ -157,7 +180,6 @@ class SlinkGUI:
         self._core = core
         self.window = None
         self.tray_icon = None
-        self._api = Api(core, lambda: self.window, quit_callback=self._on_quit)
 
     def _init_tray(self):
         png = get_resource_path("slink.png")
@@ -179,7 +201,6 @@ class SlinkGUI:
             self.window.destroy()
 
     def _start_enforce_loop(self):
-        """1초마다 숨김 상태 유지."""
         def loop():
             import time
             while True:
@@ -189,16 +210,16 @@ class SlinkGUI:
                 except Exception:
                     pass
                 time.sleep(1)
-
-        t = threading.Thread(target=loop, daemon=True)
-        t.start()
+        threading.Thread(target=loop, daemon=True).start()
 
     def run(self):
         import webview
 
-        html_path = get_resource_path("ui.html")
+        # 1) HTTP API 서버 시작
+        port = _start_api_server(self._core, self)
 
-        # 파일이 없으면 대체 경로 시도
+        # 2) HTML 로드 — API_PORT를 주입
+        html_path = get_resource_path("ui.html")
         if not os.path.exists(html_path):
             for alt in [
                 os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "ui.html"),
@@ -212,6 +233,10 @@ class SlinkGUI:
         with open(html_path, "r", encoding="utf-8") as f:
             html_content = f.read()
 
+        # API 포트 주입
+        html_content = html_content.replace("__API_PORT__", str(port))
+
+        # 3) pywebview 창 — js_api 없음, frameless
         self.window = webview.create_window(
             "Slink",
             html=html_content,
@@ -227,28 +252,6 @@ class SlinkGUI:
             self._init_tray()
             self._start_enforce_loop()
 
-            # expose로 개별 함수 노출 (js_api 객체 탐색 회피)
-            # 바운드 메서드를 래핑 — expose는 __name__ 속성이 필요
-            api = self._api
-
-            def get_app_info(): return api.get_app_info()
-            def get_windows(): return api.get_windows()
-            def hide_windows(hwnds): return api.hide_windows(hwnds)
-            def show_windows(hwnds): return api.show_windows(hwnds)
-            def check_update(): return api.check_update()
-            def do_update(): return api.do_update()
-            def open_releases(): return api.open_releases()
-            def minimize_window(): return api.minimize_window()
-            def hide_window(): return api.hide_window()
-            def quit_app(): return api.quit_app()
-
-            self.window.expose(
-                get_app_info, get_windows, hide_windows, show_windows,
-                check_update, do_update, open_releases,
-                minimize_window, hide_window, quit_app,
-            )
-
         ico = get_resource_path("slink.ico")
-
         webview.start(func=on_start, debug=False, gui="edgechromium",
                       icon=ico if os.path.exists(ico) else None)

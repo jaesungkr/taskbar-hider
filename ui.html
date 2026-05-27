@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Slink</title>
 <style>
-/* ── Reset & Base ─────────────────────────── */
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
 :root {
@@ -26,7 +25,6 @@
   --radius-sm: 6px;
   --font: 'Segoe UI', 'Malgun Gothic', -apple-system, sans-serif;
   --mono: 'Cascadia Code', 'Consolas', 'Malgun Gothic', monospace;
-  --shadow: 0 1px 3px rgba(0,0,0,0.4);
   --transition: 150ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -41,16 +39,22 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* ── Title Bar (frameless drag) ───────────── */
+/* ── Title Bar ───────────────────────────── */
 .titlebar {
   height: 38px;
   display: flex;
   align-items: center;
   padding: 0 12px;
   background: var(--bg);
-  position: relative;
-  z-index: 100;
   flex-shrink: 0;
+}
+
+.titlebar-drag {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  -webkit-app-region: drag;
 }
 
 .titlebar-logo {
@@ -65,13 +69,12 @@ html, body {
   color: var(--fg-3);
   margin-left: 6px;
   font-family: var(--mono);
-  font-weight: 400;
 }
 
 .titlebar-controls {
-  margin-left: auto;
   display: flex;
   gap: 2px;
+  -webkit-app-region: no-drag;
 }
 
 .titlebar-btn {
@@ -95,7 +98,7 @@ html, body {
   padding: 0 16px 16px;
 }
 
-/* ── Tab Navigation ───────────────────────── */
+/* ── Nav ──────────────────────────────────── */
 .nav {
   display: flex;
   align-items: center;
@@ -118,10 +121,7 @@ html, body {
   letter-spacing: 0.2px;
 }
 .nav-tab:hover { color: var(--fg-2); background: var(--accent-dim); }
-.nav-tab.active {
-  color: var(--fg);
-  background: var(--surface-2);
-}
+.nav-tab.active { color: var(--fg); background: var(--surface-2); }
 
 .nav-spacer { flex: 1; }
 
@@ -139,7 +139,7 @@ html, body {
 }
 .nav-quit:hover { color: var(--danger); background: rgba(224,85,85,0.1); }
 
-/* ── Page Container ───────────────────────── */
+/* ── Page ─────────────────────────────────── */
 .page { display: none; flex-direction: column; flex: 1; min-height: 0; }
 .page.active { display: flex; }
 
@@ -168,11 +168,7 @@ html, body {
 .btn:hover { background: var(--surface-2); border-color: var(--border-light); }
 .btn:active { transform: scale(0.97); }
 
-.btn-primary {
-  background: var(--fg);
-  color: var(--bg);
-  border-color: var(--fg);
-}
+.btn-primary { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 .btn-primary:hover { background: #d4d4d2; border-color: #d4d4d2; }
 
 .btn-icon {
@@ -182,70 +178,33 @@ html, body {
   font-size: 14px;
 }
 
-.status {
-  margin-left: auto;
-  font-size: 11px;
-  color: var(--fg-3);
-  font-family: var(--mono);
-}
+.status { margin-left: auto; font-size: 11px; color: var(--fg-3); font-family: var(--mono); }
 
 /* ── Section ──────────────────────────────── */
-.section {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  flex: 1;
-}
-
+.section { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 .section + .section { margin-top: 12px; }
 
-.section-header {
-  display: flex;
-  align-items: center;
-  padding: 0 2px 6px;
-}
-
-.section-label {
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--fg-3);
-  letter-spacing: 1.2px;
-  text-transform: uppercase;
-}
-
-.section-count {
-  margin-left: auto;
-  font-size: 10px;
-  color: var(--fg-3);
-  font-family: var(--mono);
-}
+.section-header { display: flex; align-items: center; padding: 0 2px 6px; }
+.section-label { font-size: 10px; font-weight: 600; color: var(--fg-3); letter-spacing: 1.2px; text-transform: uppercase; }
+.section-count { margin-left: auto; font-size: 10px; color: var(--fg-3); font-family: var(--mono); }
 
 /* ── List Card ────────────────────────────── */
 .list-card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
+  flex: 1; min-height: 0;
+  overflow-y: auto; overflow-x: hidden;
 }
 
-/* Scrollbar */
 .list-card::-webkit-scrollbar { width: 6px; }
 .list-card::-webkit-scrollbar-track { background: transparent; }
-.list-card::-webkit-scrollbar-thumb {
-  background: var(--border-light);
-  border-radius: 3px;
-}
-.list-card::-webkit-scrollbar-thumb:hover { background: #444; }
+.list-card::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 3px; }
 
 /* ── Row ──────────────────────────────────── */
 .row {
-  display: flex;
-  align-items: center;
-  height: 36px;
-  padding: 0 12px;
+  display: flex; align-items: center;
+  height: 36px; padding: 0 12px;
   cursor: pointer;
   transition: background var(--transition);
   position: relative;
@@ -264,52 +223,30 @@ html, body {
 .row + .row { border-top: 1px solid var(--border); }
 
 .row-process {
-  width: 110px;
-  flex-shrink: 0;
-  font-size: 11px;
-  color: var(--fg-3);
+  width: 110px; flex-shrink: 0;
+  font-size: 11px; color: var(--fg-3);
   font-family: var(--mono);
-  font-weight: 400;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
 .row-title {
-  flex: 1;
-  font-size: 12px;
-  color: var(--fg-2);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  flex: 1; font-size: 12px; color: var(--fg-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   padding-left: 12px;
 }
 
 .row.selected .row-title { color: var(--fg); }
 
 .list-empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  color: var(--fg-3);
-  font-size: 12px;
-  font-style: italic;
+  display: flex; align-items: center; justify-content: center;
+  height: 100%; color: var(--fg-3); font-size: 12px; font-style: italic;
 }
 
-/* ── Settings Page ────────────────────────── */
-.settings-scroll {
-  flex: 1;
-  overflow-y: auto;
-  padding-right: 4px;
-}
-
+/* ── Settings ─────────────────────────────── */
+.settings-scroll { flex: 1; overflow-y: auto; padding-right: 4px; }
 .settings-scroll::-webkit-scrollbar { width: 6px; }
 .settings-scroll::-webkit-scrollbar-track { background: transparent; }
-.settings-scroll::-webkit-scrollbar-thumb {
-  background: var(--border-light);
-  border-radius: 3px;
-}
+.settings-scroll::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 3px; }
 
 .card {
   background: var(--surface);
@@ -319,76 +256,34 @@ html, body {
 }
 .card + .card { margin-top: 8px; }
 
-.card-title {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--fg);
-  letter-spacing: 0.3px;
-  margin-bottom: 10px;
-}
+.card-title { font-size: 11px; font-weight: 600; color: var(--fg); letter-spacing: 0.3px; margin-bottom: 10px; }
 
-.info-row {
-  display: flex;
-  padding: 3px 0;
-}
-.info-label {
-  width: 64px;
-  font-size: 11px;
-  color: var(--fg-3);
-  flex-shrink: 0;
-}
-.info-value {
-  font-size: 11px;
-  color: var(--fg-2);
-}
+.info-row { display: flex; padding: 3px 0; }
+.info-label { width: 64px; font-size: 11px; color: var(--fg-3); flex-shrink: 0; }
+.info-value { font-size: 11px; color: var(--fg-2); }
 
-.update-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
+.update-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 .btn-sm {
-  padding: 5px 12px;
-  font-size: 11px;
-  border: 1px solid var(--border);
-  background: var(--surface-2);
-  color: var(--fg-2);
-  font-family: var(--font);
-  font-weight: 500;
-  cursor: pointer;
-  border-radius: var(--radius-sm);
+  padding: 5px 12px; font-size: 11px;
+  border: 1px solid var(--border); background: var(--surface-2);
+  color: var(--fg-2); font-family: var(--font); font-weight: 500;
+  cursor: pointer; border-radius: var(--radius-sm);
   transition: all var(--transition);
 }
 .btn-sm:hover { border-color: var(--border-light); color: var(--fg); }
 .btn-sm:disabled { opacity: 0.4; cursor: not-allowed; }
-
-.btn-sm.primary {
-  background: var(--fg);
-  color: var(--bg);
-  border-color: var(--fg);
-}
+.btn-sm.primary { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 .btn-sm.primary:hover { background: #d4d4d2; }
 
-.update-status {
-  font-size: 11px;
-  color: var(--fg-3);
-  font-family: var(--mono);
-}
+.update-status { font-size: 11px; color: var(--fg-3); font-family: var(--mono); }
 .update-status.available { color: var(--danger); }
 .update-status.ok { color: var(--success); }
 
 .link-btn {
-  background: none;
-  border: none;
-  color: var(--fg-3);
-  font-family: var(--font);
-  font-size: 11px;
-  cursor: pointer;
-  padding: 4px 0;
-  transition: color var(--transition);
-  text-decoration: none;
+  background: none; border: none; color: var(--fg-3);
+  font-family: var(--font); font-size: 11px; cursor: pointer;
+  padding: 4px 0; transition: color var(--transition);
 }
 .link-btn:hover { color: var(--fg); }
 
@@ -409,64 +304,48 @@ html, body {
 .row:nth-child(9) { animation-delay: 160ms; }
 .row:nth-child(10) { animation-delay: 180ms; }
 
-.card {
-  animation: fadeIn 250ms ease both;
-}
+.card { animation: fadeIn 250ms ease both; }
 
 /* ── Toast ────────────────────────────────── */
 .toast {
-  position: fixed;
-  bottom: 20px;
-  left: 50%;
+  position: fixed; bottom: 20px; left: 50%;
   transform: translateX(-50%) translateY(60px);
   background: var(--surface-3);
   border: 1px solid var(--border-light);
-  color: var(--fg);
-  font-size: 12px;
-  padding: 8px 18px;
-  border-radius: 8px;
-  opacity: 0;
-  transition: all 300ms cubic-bezier(0.4, 0, 0.2, 1);
-  pointer-events: none;
-  z-index: 200;
+  color: var(--fg); font-size: 12px;
+  padding: 8px 18px; border-radius: 8px;
+  opacity: 0; transition: all 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none; z-index: 200;
   box-shadow: 0 4px 20px rgba(0,0,0,0.4);
 }
-.toast.show {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 </style>
 </head>
 <body>
 
-<!-- Title Bar -->
-<div class="titlebar pywebview-drag-region">
-  <span class="titlebar-logo">Slink</span>
-  <span class="titlebar-version" id="version"></span>
+<div class="titlebar">
+  <div class="titlebar-drag pywebview-drag-region">
+    <span class="titlebar-logo">Slink</span>
+    <span class="titlebar-version" id="version"></span>
+  </div>
   <div class="titlebar-controls">
-    <button class="titlebar-btn" onclick="minimizeWindow()" title="Minimize">─</button>
-    <button class="titlebar-btn close" onclick="hideToTray()" title="Close to tray">✕</button>
+    <button class="titlebar-btn" onclick="api('/api/minimize')" title="Minimize">─</button>
+    <button class="titlebar-btn close" onclick="api('/api/hide')" title="Close to tray">✕</button>
   </div>
 </div>
 
 <div class="app">
-  <!-- Navigation -->
   <nav class="nav">
     <button class="nav-tab active" data-tab="windows" onclick="switchTab('windows')">Windows</button>
     <button class="nav-tab" data-tab="settings" onclick="switchTab('settings')">Settings</button>
     <div class="nav-spacer"></div>
-    <button class="nav-quit" onclick="quitApp()">Quit</button>
+    <button class="nav-quit" onclick="api('/api/quit')">Quit</button>
   </nav>
 
-  <!-- Windows Page -->
   <div class="page active" id="page-windows">
     <div class="action-bar">
-      <button class="btn btn-primary" onclick="hideSelected()">
-        <span>↓</span> Hide
-      </button>
-      <button class="btn" onclick="showSelected()">
-        <span>↑</span> Show
-      </button>
+      <button class="btn btn-primary" onclick="hideSelected()"><span>↓</span> Hide</button>
+      <button class="btn" onclick="showSelected()"><span>↑</span> Show</button>
       <button class="btn btn-icon" onclick="refreshList()" title="Refresh">↻</button>
       <span class="status" id="status"></span>
     </div>
@@ -488,7 +367,6 @@ html, body {
     </div>
   </div>
 
-  <!-- Settings Page -->
   <div class="page" id="page-settings">
     <div class="settings-scroll">
       <div class="card">
@@ -510,7 +388,7 @@ html, body {
 
       <div class="card">
         <div class="card-title">Links</div>
-        <button class="link-btn" onclick="openReleases()">GitHub Releases →</button>
+        <button class="link-btn" onclick="api('/api/open_releases')">GitHub Releases →</button>
       </div>
     </div>
   </div>
@@ -519,15 +397,22 @@ html, body {
 <div class="toast" id="toast"></div>
 
 <script>
-// ── State ──
-let visibleWindows = [];
-let hiddenWindows = [];
+const API = 'http://127.0.0.1:__API_PORT__';
+
+async function api(path, body) {
+  const opts = body
+    ? { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) }
+    : { method: 'GET' };
+  const r = await fetch(API + path, opts);
+  return r.json();
+}
+
 let selectedVisible = new Set();
 let selectedHidden = new Set();
 
-// ── pywebview ready ──
-window.addEventListener('pywebviewready', async () => {
-  const info = await pywebview.api.get_app_info();
+// ── Init ──
+window.addEventListener('DOMContentLoaded', async () => {
+  const info = await api('/api/info');
   document.getElementById('version').textContent = 'v' + info.version;
   document.getElementById('info-app').textContent = info.name;
   document.getElementById('info-version').textContent = 'v' + info.version;
@@ -535,154 +420,91 @@ window.addEventListener('pywebviewready', async () => {
   refreshList();
 });
 
-// ── Tab Switching ──
 function switchTab(tab) {
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === 'page-' + tab));
 }
 
-// ── Window Controls ──
-function minimizeWindow() { pywebview.api.minimize_window(); }
-function hideToTray() { pywebview.api.hide_window(); }
-
-// ── Data ──
 async function refreshList() {
-  const data = await pywebview.api.get_windows();
-  visibleWindows = data.visible || [];
-  hiddenWindows = data.hidden || [];
+  const data = await api('/api/windows');
+  const vis = data.visible || [];
+  const hid = data.hidden || [];
   selectedVisible.clear();
   selectedHidden.clear();
-  renderLists();
+  renderList('visible-list', vis, selectedVisible);
+  renderList('hidden-list', hid, selectedHidden);
+  document.getElementById('vis-count').textContent = vis.length;
+  document.getElementById('hid-count').textContent = hid.length;
+  document.getElementById('status').textContent = vis.length + ' visible · ' + hid.length + ' hidden';
 }
 
-function renderLists() {
-  renderList('visible-list', visibleWindows, selectedVisible);
-  renderList('hidden-list', hiddenWindows, selectedHidden);
-  document.getElementById('vis-count').textContent = visibleWindows.length;
-  document.getElementById('hid-count').textContent = hiddenWindows.length;
-  document.getElementById('status').textContent =
-    visibleWindows.length + ' visible · ' + hiddenWindows.length + ' hidden';
+function renderList(id, items, selSet) {
+  const el = document.getElementById(id);
+  if (!items.length) { el.innerHTML = '<div class="list-empty">No windows</div>'; return; }
+  el.innerHTML = items.map((w, i) =>
+    `<div class="row" data-hwnd="${w.hwnd}" onclick="toggle(this,${w.hwnd},'${id}')"
+          style="animation-delay:${Math.min(i*20,200)}ms">
+      <span class="row-process">${esc(w.process)}</span>
+      <span class="row-title">${esc(w.title)}</span>
+    </div>`
+  ).join('');
 }
 
-function renderList(containerId, items, selSet) {
-  const container = document.getElementById(containerId);
-  if (items.length === 0) {
-    container.innerHTML = '<div class="list-empty">No windows</div>';
-    return;
-  }
-  container.innerHTML = items.map((w, i) => {
-    const sel = selSet.has(w.hwnd) ? ' selected' : '';
-    return `<div class="row${sel}" data-hwnd="${w.hwnd}" data-list="${containerId}"
-                 onclick="toggleSelect(this, ${w.hwnd}, '${containerId}')"
-                 style="animation-delay:${Math.min(i * 20, 200)}ms">
-      <span class="row-process">${escHtml(w.process)}</span>
-      <span class="row-title">${escHtml(w.title)}</span>
-    </div>`;
-  }).join('');
+function toggle(el, hwnd, listId) {
+  const s = listId === 'visible-list' ? selectedVisible : selectedHidden;
+  if (s.has(hwnd)) { s.delete(hwnd); el.classList.remove('selected'); }
+  else { s.add(hwnd); el.classList.add('selected'); }
 }
 
-function toggleSelect(el, hwnd, listId) {
-  const selSet = listId === 'visible-list' ? selectedVisible : selectedHidden;
-  if (selSet.has(hwnd)) {
-    selSet.delete(hwnd);
-    el.classList.remove('selected');
-  } else {
-    selSet.add(hwnd);
-    el.classList.add('selected');
-  }
-}
-
-// ── Actions ──
 async function hideSelected() {
-  if (selectedVisible.size === 0) {
-    showToast('Select a window to hide');
-    return;
-  }
-  const result = await pywebview.api.hide_windows([...selectedVisible]);
-  showToast('Hidden ' + result.hidden_count + ' window(s)');
-  await refreshList();
+  if (!selectedVisible.size) { showToast('Select a window to hide'); return; }
+  const r = await api('/api/hide_windows', { hwnds: [...selectedVisible] });
+  showToast('Hidden ' + r.hidden_count + ' window(s)');
+  refreshList();
 }
 
 async function showSelected() {
-  if (selectedHidden.size === 0) {
-    showToast('Select a window to restore');
-    return;
-  }
-  const result = await pywebview.api.show_windows([...selectedHidden]);
-  showToast('Restored ' + result.shown_count + ' window(s)');
-  await refreshList();
+  if (!selectedHidden.size) { showToast('Select a window to restore'); return; }
+  const r = await api('/api/show_windows', { hwnds: [...selectedHidden] });
+  showToast('Restored ' + r.shown_count + ' window(s)');
+  refreshList();
 }
 
-async function quitApp() {
-  await pywebview.api.quit_app();
-}
-
-// ── Update ──
 async function checkUpdate() {
   const btn = document.getElementById('btn-check');
-  const status = document.getElementById('update-status');
+  const st = document.getElementById('update-status');
   btn.disabled = true;
-  status.textContent = 'Checking...';
-  status.className = 'update-status';
-
-  try {
-    const r = await pywebview.api.check_update();
-    if (r.status === 'available') {
-      status.textContent = 'v' + r.version + ' available';
-      status.className = 'update-status available';
-      document.getElementById('btn-update').style.display = '';
-    } else if (r.status === 'up_to_date') {
-      status.textContent = 'Up to date';
-      status.className = 'update-status ok';
-    } else {
-      status.textContent = 'Check failed';
-      status.className = 'update-status';
-    }
-  } catch(e) {
-    status.textContent = 'Error';
+  st.textContent = 'Checking...';
+  st.className = 'update-status';
+  const r = await api('/api/check_update');
+  if (r.status === 'available') {
+    st.textContent = 'v' + r.version + ' available';
+    st.className = 'update-status available';
+    document.getElementById('btn-update').style.display = '';
+  } else if (r.status === 'up_to_date') {
+    st.textContent = 'Up to date';
+    st.className = 'update-status ok';
+  } else {
+    st.textContent = 'Check failed';
   }
   btn.disabled = false;
 }
 
 async function doUpdate() {
-  const btn = document.getElementById('btn-update');
-  const status = document.getElementById('update-status');
-  btn.disabled = true;
-  status.textContent = 'Downloading...';
-  status.className = 'update-status';
-
-  try {
-    await pywebview.api.do_update();
-  } catch(e) {
-    status.textContent = 'Update failed';
-    btn.disabled = false;
-  }
+  document.getElementById('btn-update').disabled = true;
+  document.getElementById('update-status').textContent = 'Downloading...';
+  await api('/api/do_update');
 }
 
-async function openReleases() {
-  await pywebview.api.open_releases();
-}
-
-// ── Toast ──
-let toastTimer = null;
+let toastTimer;
 function showToast(msg) {
   const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
+  t.textContent = msg; t.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.remove('show'), 2000);
 }
 
-// ── Utils ──
-function escHtml(s) {
-  const d = document.createElement('div');
-  d.textContent = s;
-  return d.innerHTML;
-}
-
-// ── Minimize via pywebview (fallback) ──
-// pywebview frameless에서 minimize는 JS API로 직접 지원 안 됨
-// Python 쪽에서 처리
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 </script>
 </body>
 </html>
