@@ -130,11 +130,11 @@ class ApiHandler(BaseHTTPRequestHandler):
             return {"status": "error", "message": "No URL"}
 
         def on_done(close_func):
-            _core.restore_all()
-            close_func()
+            # close_func를 메인 루프(cmd_queue)에서 실행
+            _cmd_queue.put(("update_close", close_func))
 
         def on_error(msg):
-            pass  # UI에서 타임아웃으로 처리
+            pass
 
         download_and_apply(u, on_done, on_error)
         return {"status": "downloading"}
@@ -199,6 +199,16 @@ def _main_loop(window):
             window.minimize()
         elif cmd == "quit":
             _do_quit()
+            break
+        elif isinstance(cmd, tuple) and cmd[0] == "update_close":
+            close_func = cmd[1]
+            _core.restore_all()
+            if _tray:
+                try:
+                    _tray.stop()
+                except Exception:
+                    pass
+            close_func()
             break
 
 
