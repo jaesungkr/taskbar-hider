@@ -132,6 +132,8 @@ class ApiHandler(BaseHTTPRequestHandler):
         for w in enum_taskbar_windows():
             if w.get("pid") == pid:
                 continue
+            if w["hwnd"] in _core.hidden:
+                continue
             p = w["process"].lower()
             if p.startswith("slink") and p.endswith(".exe"):
                 continue
