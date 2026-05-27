@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Slink</title>
+<style>
+/* ── Reset & Base ─────────────────────────── */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #171717;
+  --surface: #1e1e1e;
+  --surface-2: #252525;
+  --surface-3: #2a2a2a;
+  --border: #2e2e2e;
+  --border-light: #333;
+  --fg: #e8e8e6;
+  --fg-2: #999;
+  --fg-3: #666;
+  --accent: #e8e8e6;
+  --accent-dim: rgba(232,232,230,0.08);
+  --danger: #e05555;
+  --success: #4ade80;
+  --radius: 10px;
+  --radius-sm: 6px;
+  --font: 'Segoe UI', 'Malgun Gothic', -apple-system, sans-serif;
+  --mono: 'Cascadia Code', 'Consolas', 'Malgun Gothic', monospace;
+  --shadow: 0 1px 3px rgba(0,0,0,0.4);
+  --transition: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+html, body {
+  width: 100%; height: 100%;
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--fg);
+  background: var(--bg);
+  overflow: hidden;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Title Bar (frameless drag) ───────────── */
+.titlebar {
+  height: 38px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  background: var(--bg);
+  -webkit-app-region: drag;
+  position: relative;
+  z-index: 100;
+  flex-shrink: 0;
+}
+
+.titlebar-logo {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--fg);
+}
+
+.titlebar-version {
+  font-size: 10px;
+  color: var(--fg-3);
+  margin-left: 6px;
+  font-family: var(--mono);
+  font-weight: 400;
+}
+
+.titlebar-controls {
+  margin-left: auto;
+  display: flex;
+  gap: 2px;
+  -webkit-app-region: no-drag;
+}
+
+.titlebar-btn {
+  width: 32px; height: 26px;
+  border: none; background: transparent;
+  color: var(--fg-3);
+  font-size: 14px;
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all var(--transition);
+}
+.titlebar-btn:hover { background: var(--surface-2); color: var(--fg); }
+.titlebar-btn.close:hover { background: var(--danger); color: #fff; }
+
+/* ── Layout ───────────────────────────────── */
+.app {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 38px);
+  padding: 0 16px 16px;
+}
+
+/* ── Tab Navigation ───────────────────────── */
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0 14px;
+  flex-shrink: 0;
+}
+
+.nav-tab {
+  padding: 6px 16px;
+  border: none;
+  background: transparent;
+  color: var(--fg-3);
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all var(--transition);
+  letter-spacing: 0.2px;
+}
+.nav-tab:hover { color: var(--fg-2); background: var(--accent-dim); }
+.nav-tab.active {
+  color: var(--fg);
+  background: var(--surface-2);
+}
+
+.nav-spacer { flex: 1; }
+
+.nav-quit {
+  padding: 5px 12px;
+  border: none;
+  background: transparent;
+  color: var(--fg-3);
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all var(--transition);
+}
+.nav-quit:hover { color: var(--danger); background: rgba(224,85,85,0.1); }
+
+/* ── Page Container ───────────────────────── */
+.page { display: none; flex-direction: column; flex: 1; min-height: 0; }
+.page.active { display: flex; }
+
+/* ── Action Bar ───────────────────────────── */
+.action-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 7px 14px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--fg);
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition);
+}
+.btn:hover { background: var(--surface-2); border-color: var(--border-light); }
+.btn:active { transform: scale(0.97); }
+
+.btn-primary {
+  background: var(--fg);
+  color: var(--bg);
+  border-color: var(--fg);
+}
+.btn-primary:hover { background: #d4d4d2; border-color: #d4d4d2; }
+
+.btn-icon {
+  width: 30px; height: 30px;
+  padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+}
+
+.status {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--fg-3);
+  font-family: var(--mono);
+}
+
+/* ── Section ──────────────────────────────── */
+.section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.section + .section { margin-top: 12px; }
+
+.section-header {
+  display: flex;
+  align-items: center;
+  padding: 0 2px 6px;
+}
+
+.section-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--fg-3);
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+}
+
+.section-count {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--fg-3);
+  font-family: var(--mono);
+}
+
+/* ── List Card ────────────────────────────── */
+.list-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Scrollbar */
+.list-card::-webkit-scrollbar { width: 6px; }
+.list-card::-webkit-scrollbar-track { background: transparent; }
+.list-card::-webkit-scrollbar-thumb {
+  background: var(--border-light);
+  border-radius: 3px;
+}
+.list-card::-webkit-scrollbar-thumb:hover { background: #444; }
+
+/* ── Row ──────────────────────────────────── */
+.row {
+  display: flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 12px;
+  cursor: pointer;
+  transition: background var(--transition);
+  position: relative;
+}
+.row:hover { background: var(--accent-dim); }
+.row.selected { background: rgba(232,232,230,0.06); }
+.row.selected::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 8px; bottom: 8px;
+  width: 3px;
+  background: var(--fg);
+  border-radius: 0 2px 2px 0;
+}
+
+.row + .row { border-top: 1px solid var(--border); }
+
+.row-process {
+  width: 110px;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--fg-3);
+  font-family: var(--mono);
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row-title {
+  flex: 1;
+  font-size: 12px;
+  color: var(--fg-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-left: 12px;
+}
+
+.row.selected .row-title { color: var(--fg); }
+
+.list-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--fg-3);
+  font-size: 12px;
+  font-style: italic;
+}
+
+/* ── Settings Page ────────────────────────── */
+.settings-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.settings-scroll::-webkit-scrollbar { width: 6px; }
+.settings-scroll::-webkit-scrollbar-track { background: transparent; }
+.settings-scroll::-webkit-scrollbar-thumb {
+  background: var(--border-light);
+  border-radius: 3px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+.card + .card { margin-top: 8px; }
+
+.card-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: 0.3px;
+  margin-bottom: 10px;
+}
+
+.info-row {
+  display: flex;
+  padding: 3px 0;
+}
+.info-label {
+  width: 64px;
+  font-size: 11px;
+  color: var(--fg-3);
+  flex-shrink: 0;
+}
+.info-value {
+  font-size: 11px;
+  color: var(--fg-2);
+}
+
+.update-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn-sm {
+  padding: 5px 12px;
+  font-size: 11px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--fg-2);
+  font-family: var(--font);
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition);
+}
+.btn-sm:hover { border-color: var(--border-light); color: var(--fg); }
+.btn-sm:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.btn-sm.primary {
+  background: var(--fg);
+  color: var(--bg);
+  border-color: var(--fg);
+}
+.btn-sm.primary:hover { background: #d4d4d2; }
+
+.update-status {
+  font-size: 11px;
+  color: var(--fg-3);
+  font-family: var(--mono);
+}
+.update-status.available { color: var(--danger); }
+.update-status.ok { color: var(--success); }
+
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--fg-3);
+  font-family: var(--font);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 4px 0;
+  transition: color var(--transition);
+  text-decoration: none;
+}
+.link-btn:hover { color: var(--fg); }
+
+/* ── Animations ───────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.row { animation: fadeIn 200ms ease both; }
+.row:nth-child(1) { animation-delay: 0ms; }
+.row:nth-child(2) { animation-delay: 20ms; }
+.row:nth-child(3) { animation-delay: 40ms; }
+.row:nth-child(4) { animation-delay: 60ms; }
+.row:nth-child(5) { animation-delay: 80ms; }
+.row:nth-child(6) { animation-delay: 100ms; }
+.row:nth-child(7) { animation-delay: 120ms; }
+.row:nth-child(8) { animation-delay: 140ms; }
+.row:nth-child(9) { animation-delay: 160ms; }
+.row:nth-child(10) { animation-delay: 180ms; }
+
+.card {
+  animation: fadeIn 250ms ease both;
+}
+
+/* ── Toast ────────────────────────────────── */
+.toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%) translateY(60px);
+  background: var(--surface-3);
+  border: 1px solid var(--border-light);
+  color: var(--fg);
+  font-size: 12px;
+  padding: 8px 18px;
+  border-radius: 8px;
+  opacity: 0;
+  transition: all 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+  z-index: 200;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+}
+.toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+</style>
+</head>
+<body>
+
+<!-- Title Bar -->
+<div class="titlebar">
+  <span class="titlebar-logo">Slink</span>
+  <span class="titlebar-version" id="version"></span>
+  <div class="titlebar-controls">
+    <button class="titlebar-btn" onclick="minimizeWindow()" title="Minimize">─</button>
+    <button class="titlebar-btn close" onclick="closeWindow()" title="Close">✕</button>
+  </div>
+</div>
+
+<div class="app">
+  <!-- Navigation -->
+  <nav class="nav">
+    <button class="nav-tab active" data-tab="windows" onclick="switchTab('windows')">Windows</button>
+    <button class="nav-tab" data-tab="settings" onclick="switchTab('settings')">Settings</button>
+    <div class="nav-spacer"></div>
+    <button class="nav-quit" onclick="quitApp()">Quit</button>
+  </nav>
+
+  <!-- Windows Page -->
+  <div class="page active" id="page-windows">
+    <div class="action-bar">
+      <button class="btn btn-primary" onclick="hideSelected()">
+        <span>↓</span> Hide
+      </button>
+      <button class="btn" onclick="showSelected()">
+        <span>↑</span> Show
+      </button>
+      <button class="btn btn-icon" onclick="refreshList()" title="Refresh">↻</button>
+      <span class="status" id="status"></span>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-label">Visible</span>
+        <span class="section-count" id="vis-count">0</span>
+      </div>
+      <div class="list-card" id="visible-list"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-label">Hidden</span>
+        <span class="section-count" id="hid-count">0</span>
+      </div>
+      <div class="list-card" id="hidden-list"></div>
+    </div>
+  </div>
+
+  <!-- Settings Page -->
+  <div class="page" id="page-settings">
+    <div class="settings-scroll">
+      <div class="card">
+        <div class="card-title">About</div>
+        <div class="info-row"><span class="info-label">App</span><span class="info-value" id="info-app"></span></div>
+        <div class="info-row"><span class="info-label">Version</span><span class="info-value" id="info-version"></span></div>
+        <div class="info-row"><span class="info-label">Author</span><span class="info-value" id="info-author"></span></div>
+        <div class="info-row"><span class="info-label">License</span><span class="info-value">MIT</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Update</div>
+        <div class="update-row">
+          <button class="btn-sm" id="btn-check" onclick="checkUpdate()">Check for Updates</button>
+          <button class="btn-sm primary" id="btn-update" onclick="doUpdate()" style="display:none">Update Now</button>
+          <span class="update-status" id="update-status"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Links</div>
+        <button class="link-btn" onclick="openReleases()">GitHub Releases →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── State ──
+let visibleWindows = [];
+let hiddenWindows = [];
+let selectedVisible = new Set();
+let selectedHidden = new Set();
+
+// ── pywebview ready ──
+window.addEventListener('pywebviewready', async () => {
+  const info = await pywebview.api.get_app_info();
+  document.getElementById('version').textContent = 'v' + info.version;
+  document.getElementById('info-app').textContent = info.name;
+  document.getElementById('info-version').textContent = 'v' + info.version;
+  document.getElementById('info-author').textContent = info.author;
+  refreshList();
+});
+
+// ── Tab Switching ──
+function switchTab(tab) {
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === 'page-' + tab));
+}
+
+// ── Window Controls ──
+function minimizeWindow() { pywebview.api.minimize_window(); }
+function closeWindow() { pywebview.api.hide_window(); }
+
+// ── Data ──
+async function refreshList() {
+  const data = await pywebview.api.get_windows();
+  visibleWindows = data.visible || [];
+  hiddenWindows = data.hidden || [];
+  selectedVisible.clear();
+  selectedHidden.clear();
+  renderLists();
+}
+
+function renderLists() {
+  renderList('visible-list', visibleWindows, selectedVisible);
+  renderList('hidden-list', hiddenWindows, selectedHidden);
+  document.getElementById('vis-count').textContent = visibleWindows.length;
+  document.getElementById('hid-count').textContent = hiddenWindows.length;
+  document.getElementById('status').textContent =
+    visibleWindows.length + ' visible · ' + hiddenWindows.length + ' hidden';
+}
+
+function renderList(containerId, items, selSet) {
+  const container = document.getElementById(containerId);
+  if (items.length === 0) {
+    container.innerHTML = '<div class="list-empty">No windows</div>';
+    return;
+  }
+  container.innerHTML = items.map((w, i) => {
+    const sel = selSet.has(w.hwnd) ? ' selected' : '';
+    return `<div class="row${sel}" data-hwnd="${w.hwnd}" data-list="${containerId}"
+                 onclick="toggleSelect(this, ${w.hwnd}, '${containerId}')"
+                 style="animation-delay:${Math.min(i * 20, 200)}ms">
+      <span class="row-process">${escHtml(w.process)}</span>
+      <span class="row-title">${escHtml(w.title)}</span>
+    </div>`;
+  }).join('');
+}
+
+function toggleSelect(el, hwnd, listId) {
+  const selSet = listId === 'visible-list' ? selectedVisible : selectedHidden;
+  if (selSet.has(hwnd)) {
+    selSet.delete(hwnd);
+    el.classList.remove('selected');
+  } else {
+    selSet.add(hwnd);
+    el.classList.add('selected');
+  }
+}
+
+// ── Actions ──
+async function hideSelected() {
+  if (selectedVisible.size === 0) {
+    showToast('Select a window to hide');
+    return;
+  }
+  const result = await pywebview.api.hide_windows([...selectedVisible]);
+  showToast('Hidden ' + result.hidden_count + ' window(s)');
+  await refreshList();
+}
+
+async function showSelected() {
+  if (selectedHidden.size === 0) {
+    showToast('Select a window to restore');
+    return;
+  }
+  const result = await pywebview.api.show_windows([...selectedHidden]);
+  showToast('Restored ' + result.shown_count + ' window(s)');
+  await refreshList();
+}
+
+async function quitApp() {
+  await pywebview.api.quit_app();
+}
+
+// ── Update ──
+async function checkUpdate() {
+  const btn = document.getElementById('btn-check');
+  const status = document.getElementById('update-status');
+  btn.disabled = true;
+  status.textContent = 'Checking...';
+  status.className = 'update-status';
+
+  try {
+    const r = await pywebview.api.check_update();
+    if (r.status === 'available') {
+      status.textContent = 'v' + r.version + ' available';
+      status.className = 'update-status available';
+      document.getElementById('btn-update').style.display = '';
+    } else if (r.status === 'up_to_date') {
+      status.textContent = 'Up to date';
+      status.className = 'update-status ok';
+    } else {
+      status.textContent = 'Check failed';
+      status.className = 'update-status';
+    }
+  } catch(e) {
+    status.textContent = 'Error';
+  }
+  btn.disabled = false;
+}
+
+async function doUpdate() {
+  const btn = document.getElementById('btn-update');
+  const status = document.getElementById('update-status');
+  btn.disabled = true;
+  status.textContent = 'Downloading...';
+  status.className = 'update-status';
+
+  try {
+    await pywebview.api.do_update();
+  } catch(e) {
+    status.textContent = 'Update failed';
+    btn.disabled = false;
+  }
+}
+
+async function openReleases() {
+  await pywebview.api.open_releases();
+}
+
+// ── Toast ──
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// ── Utils ──
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// ── Minimize via pywebview (fallback) ──
+// pywebview frameless에서 minimize는 JS API로 직접 지원 안 됨
+// Python 쪽에서 처리
+</script>
+</body>
+</html>
