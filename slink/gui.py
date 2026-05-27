@@ -196,9 +196,24 @@ class SlinkGUI:
 
         html_path = get_resource_path("ui.html")
 
+        # 파일이 없으면 대체 경로 시도
+        if not os.path.exists(html_path):
+            for alt in [
+                os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "ui.html"),
+                os.path.join(os.getcwd(), "ui.html"),
+            ]:
+                alt = os.path.normpath(alt)
+                if os.path.exists(alt):
+                    html_path = alt
+                    break
+
+        # HTML을 문자열로 읽어서 직접 로드 (경로 문제 회피)
+        with open(html_path, "r", encoding="utf-8") as f:
+            html_content = f.read()
+
         self.window = webview.create_window(
             "Slink",
-            url=html_path,
+            html=html_content,
             js_api=self._api,
             width=540,
             height=520,
