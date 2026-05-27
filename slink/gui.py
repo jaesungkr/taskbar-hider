@@ -190,7 +190,6 @@ def _main_loop(window):
         except queue.Empty:
             continue
 
-        print(f"[Slink] cmd: {cmd}")
 
         if cmd == "hide":
             window.hide()
